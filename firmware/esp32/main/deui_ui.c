@@ -632,19 +632,22 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   }
 
   /** One mode at a time: visibility is owned by `deui_ui_screen_*.c`. */
-  /** Brewing UI only in DE1 Espresso major (0x04); idle headline + transparent metrics for all other majors. */
-  const bool brew = status->ble_connected && status->de1_state_valid &&
-                    (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+  const bool de1_idle = status->ble_connected && status->de1_state_valid &&
+                        (status->de1_major_state == DE1_MAJOR_STATE_IDLE);
+  const bool de1_brew = status->ble_connected && status->de1_state_valid &&
+                        (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
 
   if (!status->ble_connected) {
     deui_ui_screen_apply_searching();
-  } else if (brew) {
+  } else if (de1_brew) {
     deui_ui_screen_apply_brewing();
-  } else {
+  } else if (de1_idle) {
     deui_ui_screen_apply_idle(status->machine_state_center);
+  } else {
+    deui_ui_screen_apply_status(status->machine_state_center);
   }
 
-  const bool shot_layout = brew;
+  const bool shot_layout = de1_brew;
   if (shot_layout != s_metrics_shot_layout) {
     s_metrics_shot_layout = shot_layout;
     deui_theme_palette_t theme;

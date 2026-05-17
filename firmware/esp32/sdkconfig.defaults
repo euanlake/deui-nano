@@ -20,7 +20,8 @@ CONFIG_BT_NIMBLE_LOG_LEVEL_WARNING=y
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
 CONFIG_ESP_WIFI_STA_SUPPORT=y
 
-# DE1 (nRF52) compatibility: avoid BLE 5 PHY negotiation and host privacy with legacy peripherals.
+# DE1 (nRF52) compatibility: avoid BLE 5 PHY / host privacy with legacy peripherals.
+# LE Data Length auto-negotiation is disabled in deui_ble_hci_compat.c (DE1 rejects HCI 0x0022).
 # CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT is not set
 # CONFIG_BT_NIMBLE_LL_CFG_FEAT_LE_2M_PHY is not set
 # CONFIG_BT_NIMBLE_LL_CFG_FEAT_LE_CODED_PHY is not set

@@ -1,6 +1,6 @@
 /**
- * Connected, not in DE1 **Espresso** major (0x04): headline + metrics grid (transparent plate).
- * Mutually exclusive with `deui_ui_screen_brewing` / `deui_ui_screen_searching`.
+ * DE1 major **Idle** (0x02) only: headline + metrics grid (transparent plate).
+ * Mutually exclusive with brewing, status, and searching screens.
  */
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"

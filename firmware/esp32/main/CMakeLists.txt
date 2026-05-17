@@ -7,10 +7,14 @@ idf_component_register(
     "board_leds.c"
     "board_power.c"
     "deui_ble_client.c"
+    "deui_scale_client.c"
+    "deui_weight_stop.c"
+    "deui_ble_hci_compat.c"
     "deui_ui.c"
     "deui_ui_screen_searching.c"
     "deui_ui_screen_idle.c"
     "deui_ui_screen_brewing.c"
+    "deui_ui_screen_status.c"
     "../../../fonts/LabGrotesque_Regular_16.c"
     "../../../fonts/LabGrotesque_Bold_48.c"
     "input.c"
@@ -34,3 +38,11 @@ idf_component_register(
     esp_wifi
     nvs_flash
 )
+
+# NimBLE always negotiates LE Data Length on connect; DE1 returns UNSUPP_REM_FEATURE.
+target_link_options(
+  ${COMPONENT_LIB}
+  INTERFACE
+  "-Wl,--wrap=ble_hs_hci_util_set_data_len"
+  "-u"
+  "__wrap_ble_hs_hci_util_set_data_len")

@@ -10,8 +10,10 @@
 #define DE1_CHAR_SHOT_SAMPLE "0000a00d-0000-1000-8000-00805f9b34fb"
 #define DE1_CHAR_STATE_INFO "0000a00e-0000-1000-8000-00805f9b34fb"
 #define DE1_CHAR_TEMPERATURES "0000a00a-0000-1000-8000-00805f9b34fb"
+#define DE1_CHAR_REQUESTED_STATE "0000a002-0000-1000-8000-00805f9b34fb"
 
-/** Major state Espresso (`docs/de1-bluetooth-protocol.md`) — only mode that uses shot metrics / brewing UI. */
+/** Major states (`docs/de1-bluetooth-protocol.md`) — drive mutually exclusive UI modes. */
+#define DE1_MAJOR_STATE_IDLE 0x02u
 #define DE1_MAJOR_STATE_ESPRESSO 0x04u
 
 typedef struct {
@@ -60,5 +62,7 @@ typedef struct {
 esp_err_t deui_ble_init(void);
 void deui_ble_tick(void);
 void deui_ble_get_status(deui_ble_status_t *status);
+void deui_ble_set_scale_weight(float weight_g, bool has_weight, bool connected);
+esp_err_t deui_ble_request_idle_stop(void);
 bool deui_ble_parse_shot_sample(const uint8_t *payload, size_t len, de1_shot_sample_t *out);
 const char *deui_ble_gap_name(void);

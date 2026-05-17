@@ -31,11 +31,13 @@ static const char *TAG = "deui_ble";
 static const char *const k_svc_str = DE1_SERVICE_UUID;
 static const char *const k_shot_chr_str = DE1_CHAR_SHOT_SAMPLE;
 static const char *const k_state_chr_str = DE1_CHAR_STATE_INFO;
+static const char *const k_requested_state_chr_str = DE1_CHAR_REQUESTED_STATE;
 
 /** Parsed once at NimBLE sync. */
 static ble_uuid_any_t s_uuid_svc;
 static ble_uuid_any_t s_uuid_shot;
 static ble_uuid_any_t s_uuid_state;
+static ble_uuid_any_t s_uuid_requested_state;
 
 /** Session / telemetry */
 static SemaphoreHandle_t s_status_mtx;
@@ -47,12 +49,16 @@ static uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static volatile bool s_gatt_ready;
 static uint16_t s_shot_val_handle;
 static uint16_t s_state_val_handle;
+static uint16_t s_requested_state_val_handle;
 static bool s_discovery_pending;
 /** Connect deferred out of GAP scan callback (NimBLE host thread). */
 static bool s_connect_pending;
 static ble_addr_t s_pending_peer_addr;
 /** Last GATT read of DE1 StateInfo (conn_handle valid and discovery done). */
 static int64_t s_last_state_read_us;
+static bool s_scale_connected;
+static bool s_scale_has_weight;
+static float s_scale_weight_g;
 
 /** DE1-friendly link parameters (matches legacy DEUI / NimBLE-Arduino client). */
 static const struct ble_gap_conn_params k_de1_conn_params = {
@@ -73,6 +79,7 @@ static void host_task(void *param);
 static void on_reset(int reason);
 static void on_sync(void);
 static int gap_event(struct ble_gap_event *event, void *arg);
+static void subscribe_to_state(const struct peer *peer);
 static void subscribe_to_shot(const struct peer *peer);
 static void on_disc_complete(const struct peer *peer, int status, void *arg);
 
@@ -456,7 +463,11 @@ static void status_reset_disconnected(bool scanning) {
   memset(&s_live, 0, sizeof(s_live));
   s_live.scanning = scanning;
   s_state_val_handle = 0;
+  s_requested_state_val_handle = 0;
   s_last_state_read_us = 0;
+  s_scale_connected = false;
+  s_scale_has_weight = false;
+  s_scale_weight_g = 0.f;
   if (scanning) {
     strncpy(s_live.detail_line, "Scanning for DE1…", sizeof(s_live.detail_line) - 1);
     strncpy(s_live.ble_heading, "Bluetooth: idle", sizeof(s_live.ble_heading) - 1);
@@ -831,7 +842,11 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     s_discovery_pending = false;
     s_shot_val_handle = 0;
     s_state_val_handle = 0;
+    s_requested_state_val_handle = 0;
     s_last_state_read_us = 0;
+    s_scale_connected = false;
+    s_scale_has_weight = false;
+    s_scale_weight_g = 0.f;
     scan_resume();
     return 0;
   }
@@ -870,15 +885,15 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
   return 0;
 }
 
-static int on_cccd_written(uint16_t conn_handle,
-                           const struct ble_gatt_error *error,
-                           struct ble_gatt_attr *attr,
-                           void *arg) {
+static int on_shot_cccd_written(uint16_t conn_handle,
+                                const struct ble_gatt_error *error,
+                                struct ble_gatt_attr *attr,
+                                void *arg) {
   (void)attr;
   (void)arg;
 
   if (error->status != 0) {
-    ESP_LOGE(TAG, "CCCD write failed status=%d", error->status);
+    ESP_LOGE(TAG, "ShotSample CCCD write failed status=%d", error->status);
     ble_gap_terminate(conn_handle, BLE_ERR_REM_USER_CONN_TERM);
     return 0;
   }
@@ -953,6 +968,62 @@ static void read_de1_state_now(uint16_t conn_handle) {
   }
 }
 
+static int on_state_cccd_written(uint16_t conn_handle,
+                                 const struct ble_gatt_error *error,
+                                 struct ble_gatt_attr *attr,
+                                 void *arg) {
+  (void)attr;
+  (void)arg;
+
+  if (error->status != 0) {
+    ESP_LOGE(TAG, "StateInfo CCCD write failed status=%d", error->status);
+    ble_gap_terminate(conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+    return 0;
+  }
+
+  const struct peer *peer = peer_find(conn_handle);
+  if (peer == NULL) {
+    ESP_LOGE(TAG, "StateInfo CCCD ok but peer missing");
+    return 0;
+  }
+
+  subscribe_to_shot(peer);
+  return 0;
+}
+
+static void subscribe_to_state(const struct peer *peer) {
+  const struct peer_chr *chr =
+      peer_chr_find_uuid(peer, (const ble_uuid_t *)&s_uuid_svc, (const ble_uuid_t *)&s_uuid_state);
+  if (chr == NULL) {
+    ESP_LOGW(TAG, "StateInfo missing; shot stream only");
+    subscribe_to_shot(peer);
+    return;
+  }
+
+  s_state_val_handle = chr->chr.val_handle;
+
+  const struct peer_dsc *ccd = peer_dsc_find_uuid(peer,
+                                                   (const ble_uuid_t *)&s_uuid_svc,
+                                                   (const ble_uuid_t *)&s_uuid_state,
+                                                   BLE_UUID16_DECLARE(BLE_GATT_DSC_CLT_CFG_UUID16));
+  if (ccd == NULL) {
+    ESP_LOGW(TAG, "StateInfo CCCD missing; polling only");
+    read_de1_state_now(peer->conn_handle);
+    subscribe_to_shot(peer);
+    return;
+  }
+
+  uint8_t notify_on[2] = {1, 0};
+  int rc = ble_gattc_write_flat(peer->conn_handle, ccd->dsc.handle,
+                                notify_on, sizeof notify_on,
+                                on_state_cccd_written,
+                                NULL);
+  if (rc != 0) {
+    ESP_LOGE(TAG, "ble_gattc_write_flat(StateInfo cccd) failed rc=%d", rc);
+    ble_gap_terminate(peer->conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+  }
+}
+
 static void subscribe_to_shot(const struct peer *peer) {
   const struct peer_chr *chr =
       peer_chr_find_uuid(peer, (const ble_uuid_t *)&s_uuid_svc, (const ble_uuid_t *)&s_uuid_shot);
@@ -977,7 +1048,7 @@ static void subscribe_to_shot(const struct peer *peer) {
   uint8_t notify_on[2] = {1, 0};
   int rc = ble_gattc_write_flat(peer->conn_handle, ccd->dsc.handle,
                                 notify_on, sizeof notify_on,
-                                on_cccd_written,
+                                on_shot_cccd_written,
                                 NULL);
   if (rc != 0) {
     ESP_LOGE(TAG, "ble_gattc_write_flat(cccd) failed rc=%d", rc);
@@ -1002,17 +1073,16 @@ static void on_disc_complete(const struct peer *peer, int status, void *arg) {
 
   locked_heading_detail_scan(false, "Bluetooth: DE1 subscribed…", NULL);
 
-  const struct peer_chr *state_chr =
-      peer_chr_find_uuid(peer, (const ble_uuid_t *)&s_uuid_svc, (const ble_uuid_t *)&s_uuid_state);
-  if (state_chr == NULL) {
-    ESP_LOGW(TAG, "StateInfo characteristic not found (0xa00e)");
-    s_state_val_handle = 0;
+  const struct peer_chr *requested_state_chr = peer_chr_find_uuid(
+      peer, (const ble_uuid_t *)&s_uuid_svc, (const ble_uuid_t *)&s_uuid_requested_state);
+  if (requested_state_chr == NULL) {
+    ESP_LOGW(TAG, "RequestedState characteristic not found (0xa002)");
+    s_requested_state_val_handle = 0;
   } else {
-    s_state_val_handle = state_chr->chr.val_handle;
-    read_de1_state_now(peer->conn_handle);
+    s_requested_state_val_handle = requested_state_chr->chr.val_handle;
   }
 
-  subscribe_to_shot(peer);
+  subscribe_to_state(peer);
 }
 
 static void on_reset(int reason) {
@@ -1024,7 +1094,8 @@ static void on_sync(void) {
 
   if (ble_uuid_from_str(&s_uuid_svc, k_svc_str) != 0 ||
       ble_uuid_from_str(&s_uuid_shot, k_shot_chr_str) != 0 ||
-      ble_uuid_from_str(&s_uuid_state, k_state_chr_str) != 0) {
+      ble_uuid_from_str(&s_uuid_state, k_state_chr_str) != 0 ||
+      ble_uuid_from_str(&s_uuid_requested_state, k_requested_state_chr_str) != 0) {
     ESP_LOGE(TAG, "Invalid DE1 BLE UUID constants");
     return;
   }
@@ -1103,7 +1174,7 @@ void deui_ble_tick(void) {
   int64_t now = esp_timer_get_time();
 
   if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE && s_state_val_handle != 0 && !s_discovery_pending) {
-    if (now - s_last_state_read_us >= 400000) {
+    if (now - s_last_state_read_us >= 250000) {
       read_de1_state_now(s_conn_handle);
     }
   }
@@ -1168,7 +1239,7 @@ void deui_ble_get_status(deui_ble_status_t *status) {
   bool shot_time =
       status->connected && status->de1_state_valid && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
   status->show_shot_time = shot_time;
-  status->show_scale_weight = false;
+  status->show_scale_weight = shot_time && s_scale_connected && s_scale_has_weight;
 
   if (!shot_time) {
     status->weight_g = 0.f;
@@ -1176,6 +1247,12 @@ void deui_ble_get_status(deui_ble_status_t *status) {
     status->flow_ml_s = 0.f;
     status->pressure_bar = 0.f;
     status->has_live_data = false;
+  } else {
+    if (status->show_scale_weight) {
+      status->weight_g = s_scale_weight_g;
+    } else {
+      status->weight_g = 0.f;
+    }
   }
 
   /** Host still scanning / connecting counts as non-idle BLE for UI headings. */
@@ -1221,5 +1298,34 @@ static const char *const s_gap_name = "DEUI-ST77916";
 
 const char *deui_ble_gap_name(void) {
   return s_gap_name;
+}
+
+void deui_ble_set_scale_weight(float weight_g, bool has_weight, bool connected) {
+  if (xSemaphoreTake(s_status_mtx, pdMS_TO_TICKS(60)) != pdTRUE) {
+    return;
+  }
+  s_scale_connected = connected;
+  s_scale_has_weight = has_weight;
+  s_scale_weight_g = weight_g;
+  xSemaphoreGive(s_status_mtx);
+}
+
+esp_err_t deui_ble_request_idle_stop(void) {
+  if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE || !s_gatt_ready) {
+    return ESP_ERR_INVALID_STATE;
+  }
+  if (s_requested_state_val_handle == 0) {
+    return ESP_ERR_NOT_FOUND;
+  }
+
+  uint8_t idle_state = 0x02u;
+  int rc = ble_gattc_write_flat(s_conn_handle, s_requested_state_val_handle, &idle_state,
+                                sizeof(idle_state), NULL, NULL);
+  if (rc != 0) {
+    ESP_LOGW(TAG, "RequestedState write failed rc=%d", rc);
+    return ESP_FAIL;
+  }
+  ESP_LOGI(TAG, "RequestedState=Idle stop sent");
+  return ESP_OK;
 }
 

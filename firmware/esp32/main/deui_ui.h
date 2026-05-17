@@ -10,6 +10,8 @@
 typedef struct {
   bool ble_connected;
   bool wifi_connected;
+  bool scale_connected;
+  bool scale_scanning;
   lm_ctrl_power_info_t power;
 
   /** Peer / status line (e.g. DE1 name); shown when useful. */
@@ -22,12 +24,12 @@ typedef struct {
   char machine_state_center[24];
 
   /**
-   * When true, legacy field — use `de1_major_state == 0x04` (Espresso) for layout; see `de1_major_state`.
+   * Legacy field — layout uses `de1_major_state` (0x02 = idle UI, 0x04 = brewing UI).
    */
   bool show_shot_time;
   bool show_scale_weight;
 
-  /** From DE1 StateInfo; `de1_major_state == 0x04` selects brewing UI (mutually exclusive with idle headline). */
+  /** From DE1 StateInfo; 0x02 = idle UI, 0x04 = brewing UI (mutually exclusive). */
   bool de1_state_valid;
   uint8_t de1_major_state;
 } deui_ui_status_t;

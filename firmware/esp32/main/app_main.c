@@ -12,7 +12,9 @@
 #include "board_leds.h"
 #include "board_power.h"
 #include "deui_ble_client.h"
+#include "deui_scale_client.h"
 #include "deui_ui.h"
+#include "deui_weight_stop.h"
 #include "input.h"
 #include "wifi_setup.h"
 
@@ -31,6 +33,8 @@ void app_main(void) {
   ESP_ERROR_CHECK(lm_ctrl_power_init());
   ESP_ERROR_CHECK(deui_wifi_init());
   ESP_ERROR_CHECK(deui_ble_init());
+  ESP_ERROR_CHECK(deui_scale_init());
+  ESP_ERROR_CHECK(deui_weight_stop_init());
   ESP_ERROR_CHECK(lm_ctrl_input_init(input_queue));
   if (lm_ctrl_leds_init() != ESP_OK) {
     ESP_LOGW(TAG, "LED ring unavailable");
@@ -52,6 +56,18 @@ void app_main(void) {
     }
 
     deui_ble_tick();
+    deui_ble_status_t ble_pre_status = {0};
+    deui_ble_get_status(&ble_pre_status);
+
+    deui_scale_tick(ble_pre_status.connected);
+    deui_scale_status_t scale_status = {0};
+    deui_scale_get_status(&scale_status);
+
+    deui_ble_set_scale_weight(scale_status.weight_g, scale_status.has_weight, scale_status.connected);
+    deui_weight_stop_tick(ble_pre_status.connected, ble_pre_status.de1_major_state,
+                          ble_pre_status.de1_minor_state, scale_status.connected,
+                          scale_status.has_weight, scale_status.weight_g);
+
     deui_ui_tick();
     lm_ctrl_leds_tick();
 
@@ -66,6 +82,8 @@ void app_main(void) {
 
     ui_status.ble_connected = ble_status.connected;
     ui_status.wifi_connected = wifi_info.sta_connected;
+    ui_status.scale_connected = scale_status.connected;
+    ui_status.scale_scanning = scale_status.scanning;
     ui_status.power = power_info;
 
     strncpy(ui_status.ble_footer, ble_status.detail_line, sizeof(ui_status.ble_footer) - 1);
