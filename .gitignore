@@ -1,0 +1,67 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# macOS / iCloud duplicate copies (e.g. "sdkconfig 2", "espressif__freetype 2")
+* 2
+* 2/
+
+# Editor / IDE (machine-local; keep extensions.json in repo if you add one)
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Secrets and local env
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# Logs and scratch
+*.log
+screenlog.*
+*.tmp
+*.bak
+
+# --- ESP-IDF (firmware/esp32) ---
+firmware/esp32/build/
+firmware/esp32/managed_components/
+firmware/esp32/sdkconfig.old
+firmware/esp32/sdkconfig.ci
+firmware/esp32/.cache/
+firmware/esp32/dependencies.lock.bak
+
+# sdkconfig is usually committed; ignore only personal overrides
+firmware/esp32/sdkconfig.user
+firmware/esp32/sdkconfig.local
+
+# --- Arduino / PlatformIO (legacy main/ tree, if used) ---
+.pio/
+.pioenvs/
+.piolibdeps/
+main/build/
+*.hex
+*.elf
+*.map
+*.bin
+!firmware/esp32/partitions.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+
+# Coverage / test output
+coverage/
+*.gcno
+*.gcda

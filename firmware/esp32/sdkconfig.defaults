@@ -20,8 +20,9 @@ CONFIG_BT_NIMBLE_LOG_LEVEL_WARNING=y
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
 CONFIG_ESP_WIFI_STA_SUPPORT=y
 
-# DE1 and similar peripherals may reject LE 2M/Coded PHY negotiation → HCI BLE_ERR_UNSUPP_REM_FEATURE
-# (controller ogf=0x08 "Unsupported Remote Feature"). Stick to BLE 4.x / 1M PHY for compatibility.
+# DE1 (nRF52) compatibility: avoid BLE 5 PHY negotiation and host privacy with legacy peripherals.
 # CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT is not set
 # CONFIG_BT_NIMBLE_LL_CFG_FEAT_LE_2M_PHY is not set
 # CONFIG_BT_NIMBLE_LL_CFG_FEAT_LE_CODED_PHY is not set
+CONFIG_BT_NIMBLE_HS_PVCY=n
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=185

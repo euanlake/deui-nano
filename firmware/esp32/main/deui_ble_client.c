@@ -48,8 +48,23 @@ static volatile bool s_gatt_ready;
 static uint16_t s_shot_val_handle;
 static uint16_t s_state_val_handle;
 static bool s_discovery_pending;
+/** Connect deferred out of GAP scan callback (NimBLE host thread). */
+static bool s_connect_pending;
+static ble_addr_t s_pending_peer_addr;
 /** Last GATT read of DE1 StateInfo (conn_handle valid and discovery done). */
 static int64_t s_last_state_read_us;
+
+/** DE1-friendly link parameters (matches legacy DEUI / NimBLE-Arduino client). */
+static const struct ble_gap_conn_params k_de1_conn_params = {
+    .scan_itvl = 0x0010,
+    .scan_window = 0x0010,
+    .itvl_min = 24,
+    .itvl_max = 48,
+    .latency = 0,
+    .supervision_timeout = 200,
+    .min_ce_len = 0,
+    .max_ce_len = 0,
+};
 /** Monotonic scan telemetry (GAP thread updates; tick reads without mutex). */
 static volatile uint32_t s_gap_adv_reports_total;
 static volatile uint32_t s_gap_adv_de1_matches;
@@ -570,8 +585,12 @@ static bool is_de1_candidate(struct ble_gap_disc_desc const *disc, struct ble_hs
   return uuid_hit || name_hit;
 }
 
-static bool connect_to_adv(struct ble_gap_disc_desc const *disc) {
+static bool connect_to_peer(const ble_addr_t *peer_addr) {
   int rc;
+
+  if (peer_addr == NULL) {
+    return false;
+  }
 
   uint8_t own_addr_type = 0;
   rc = ble_hs_id_infer_auto(0, &own_addr_type);
@@ -588,13 +607,11 @@ static bool connect_to_adv(struct ble_gap_disc_desc const *disc) {
   }
 #endif
 
-  ESP_LOGI(TAG, "BLE: found peer=\"%s\" addr=%s",
+  ESP_LOGI(TAG, "BLE: connecting to peer=\"%s\" addr=%s",
            s_remote_name_snapshot[0] != '\0' ? s_remote_name_snapshot : "(no name)",
-           addr_str(disc->addr.val));
+           addr_str(peer_addr->val));
 
-  rc = ble_gap_connect(own_addr_type, &disc->addr, 60000,
-                       NULL,
-                       gap_event, NULL);
+  rc = ble_gap_connect(own_addr_type, peer_addr, 60000, &k_de1_conn_params, gap_event, NULL);
   if (rc != 0) {
     ESP_LOGE(TAG, "ble_gap_connect failed rc=%d", rc);
     scan_resume();
@@ -608,7 +625,8 @@ static void scan_resume(void) {
   if (!s_nimble_ready) {
     return;
   }
-  if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE || s_discovery_pending || s_gatt_ready) {
+  if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE || s_discovery_pending || s_gatt_ready ||
+      s_connect_pending) {
     return;
   }
 
@@ -651,6 +669,11 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     if (!is_de1_candidate(&event->disc, &fields, NULL, NULL)) {
       break;
     }
+
+    if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE || s_discovery_pending || s_connect_pending) {
+      break;
+    }
+
     ++s_gap_adv_de1_matches;
 
     snprintf(s_remote_name_snapshot, sizeof(s_remote_name_snapshot), "(no name)");
@@ -678,12 +701,19 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
              "Bluetooth: found %.32s",
              (s_remote_name_snapshot[0] != '\0') ? s_remote_name_snapshot : "?");
 
-    (void)connect_to_adv(&event->disc);
+    ESP_LOGI(TAG, "BLE: found peer=\"%s\" addr=%s",
+             s_remote_name_snapshot[0] != '\0' ? s_remote_name_snapshot : "(no name)",
+             addr_str(event->disc.addr.val));
+
+    s_pending_peer_addr = event->disc.addr;
+    s_connect_pending = true;
     locked_heading_detail_scan(false, heading_found, "Connecting…");
     return 0;
   }
 
   case BLE_GAP_EVENT_CONNECT: {
+    s_connect_pending = false;
+
     if (event->connect.status != 0) {
       ESP_LOGW(TAG, "BLE: connect failed status=%d (resuming search)",
                event->connect.status);
@@ -704,7 +734,7 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     if (ble_gap_conn_find(s_conn_handle, &connected) == 0) {
       peer_ota_str = addr_str(connected.peer_ota_addr.val);
     }
-    ESP_LOGD(TAG, "GAP link up conn=%u peer=%s", (unsigned)s_conn_handle, peer_ota_str);
+    ESP_LOGI(TAG, "BLE: link up conn=%u peer=%s", (unsigned)s_conn_handle, peer_ota_str);
 
     char detail_connected[sizeof(s_live.detail_line)];
     snprintf(detail_connected, sizeof detail_connected, "%s (@%s)",
@@ -718,9 +748,11 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
 
     s_discovery_pending = true;
 
-    int rc_disc = peer_disc_all(s_conn_handle, on_disc_complete, NULL);
+    int rc_disc =
+        peer_disc_svc_by_uuid(s_conn_handle, (const ble_uuid_t *)&s_uuid_svc, on_disc_complete, NULL);
     if (rc_disc != 0) {
-      ESP_LOGE(TAG, "peer_disc_all failed rc=%d", rc_disc);
+      ESP_LOGE(TAG, "peer_disc_svc_by_uuid failed rc=%d", rc_disc);
+      s_discovery_pending = false;
       ble_gap_terminate(s_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
     }
 
@@ -778,8 +810,13 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     return 0;
   }
 
-  case BLE_GAP_EVENT_DISCONNECT:
-    ESP_LOGI(TAG, "BLE: disconnected hci=%d (scan resumes)", event->disconnect.reason);
+  case BLE_GAP_EVENT_DISCONNECT: {
+    int reason = event->disconnect.reason;
+    if (reason >= BLE_HS_ERR_HCI_BASE && reason < BLE_HS_ERR_HCI_BASE + 0x100) {
+      ESP_LOGI(TAG, "BLE: disconnected hci=0x%02x (scan resumes)", reason - BLE_HS_ERR_HCI_BASE);
+    } else {
+      ESP_LOGI(TAG, "BLE: disconnected status=%d (scan resumes)", reason);
+    }
 
     peer_delete(event->disconnect.conn.conn_handle);
 
@@ -787,6 +824,7 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
       s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
     }
 
+    s_connect_pending = false;
     memset(s_remote_name_snapshot, 0, sizeof(s_remote_name_snapshot));
     status_reset_disconnected(true);
     s_gatt_ready = false;
@@ -796,6 +834,7 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     s_last_state_read_us = 0;
     scan_resume();
     return 0;
+  }
 
   case BLE_GAP_EVENT_DISC_COMPLETE:
     ESP_LOGD(TAG, "GAP scan procedure complete status=%d", event->disc_complete.reason);
@@ -1053,6 +1092,14 @@ void deui_ble_tick(void) {
     return;
   }
 
+  if (s_connect_pending && s_conn_handle == BLE_HS_CONN_HANDLE_NONE && !s_discovery_pending) {
+    s_connect_pending = false;
+    if (!connect_to_peer(&s_pending_peer_addr)) {
+      status_reset_disconnected(true);
+      scan_resume();
+    }
+  }
+
   int64_t now = esp_timer_get_time();
 
   if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE && s_state_val_handle != 0 && !s_discovery_pending) {
@@ -1061,7 +1108,8 @@ void deui_ble_tick(void) {
     }
   }
 
-  if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE || s_discovery_pending || s_gatt_ready) {
+  if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE || s_discovery_pending || s_gatt_ready ||
+      s_connect_pending) {
     return;
   }
 
