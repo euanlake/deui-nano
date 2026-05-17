@@ -892,7 +892,7 @@
     "LV_BUILD_EXAMPLES": true,
     "LV_CALENDAR_WEEK_STARTS_MONDAY": false,
     "LV_CIRCLE_CACHE_SIZE": 4,
-    "LV_COLOR_16_SWAP": false,
+    "LV_COLOR_16_SWAP": true,
     "LV_COLOR_CHROMA_KEY_HEX": 65280,
     "LV_COLOR_DEPTH": 16,
     "LV_COLOR_DEPTH_1": false,

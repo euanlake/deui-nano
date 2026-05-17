@@ -264,6 +264,7 @@ esp_err_t lm_ctrl_display_init(lv_disp_t **out_display) {
 
   esp_lcd_panel_dev_config_t panel_config = {
     .reset_gpio_num = LM_CTRL_LCD_RST,
+    /* Keep RGB order here; LVGL RGB565 byte lane alignment is handled by CONFIG_LV_COLOR_16_SWAP. */
     .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
     .bits_per_pixel = LM_CTRL_LCD_BPP,
     .vendor_config = &vendor_config,

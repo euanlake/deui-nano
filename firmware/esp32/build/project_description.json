@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "deui_controller",
-    "project_version":    "1",
+    "project_version":    "e4c3a8d-dirty",
     "project_path":       "/Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32",
     "idf_path":           "/Users/euanlake/esp/esp-idf",
     "build_dir":          "/Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32/build",

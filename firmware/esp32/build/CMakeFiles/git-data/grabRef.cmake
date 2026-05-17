@@ -18,7 +18,7 @@ set(HEAD_HASH)
 file(READ "/Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32/build/CMakeFiles/git-data/HEAD" HEAD_CONTENTS LIMIT 1024)
 
 string(STRIP "${HEAD_CONTENTS}" HEAD_CONTENTS)
-set(GIT_DIR "/Users/euanlake/esp/esp-idf/.git")
+set(GIT_DIR "/Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/.git")
 # handle git-worktree
 if(EXISTS "${GIT_DIR}/commondir")
 	file(READ "${GIT_DIR}/commondir" GIT_DIR_NEW LIMIT 1024)
