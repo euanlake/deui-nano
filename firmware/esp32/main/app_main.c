@@ -122,8 +122,9 @@ void app_main(void) {
     float t_s = 0.f;
     float flow = ble_status.flow_ml_s;
     float bar = ble_status.pressure_bar;
-    const bool brew_ui = ble_status.connected && ble_status.de1_state_valid &&
-                         (ble_status.de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+    /** Match `deui_ui_update_status`: shot metrics only in DE1 major Espresso (0x04), regardless of state_valid. */
+    const bool brew_ui =
+        ble_status.connected && (ble_status.de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
     const bool preinfuse_or_later =
         brew_ui && (ble_status.de1_minor_state >= k_de1_minor_preinfuse);
     if (!brew_ui) {

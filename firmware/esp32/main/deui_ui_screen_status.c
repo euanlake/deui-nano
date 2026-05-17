@@ -1,5 +1,6 @@
 /**
- * Connected to DE1 but not in Idle (0x02) or Espresso (0x04): headline only (Steam, Busy, …).
+ * Headline-only, metrics hidden — alternate layout kept for reference.
+ * `deui_ui_update_status` routes all connected non-Espresso majors to `deui_ui_screen_apply_idle` instead.
  */
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"

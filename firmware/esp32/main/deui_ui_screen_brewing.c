@@ -1,6 +1,6 @@
 /**
- * DE1 major **Espresso** (0x04) only: hide headline, show metrics capsule + arcs (via `deui_ui_update_metrics`).
- * Mutually exclusive with idle/searching; selection is done in `deui_ui_update_status`.
+ * DE1 major **Espresso** (0x04) only — do not call except from the `de1_brew` branch in `deui_ui_update_status`.
+ * Hides headline, shows metrics capsule + arcs (metrics via `deui_ui_update_metrics`).
  */
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"

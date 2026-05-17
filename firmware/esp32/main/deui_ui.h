@@ -24,12 +24,12 @@ typedef struct {
   char machine_state_center[24];
 
   /**
-   * Legacy field — layout uses `de1_major_state` (0x02 = idle UI, 0x04 = brewing UI).
+   * BLE layer flags for shot timer / scale weight in telemetry; UI mode is driven by `de1_major_state`.
    */
   bool show_shot_time;
   bool show_scale_weight;
 
-  /** From DE1 StateInfo; 0x02 = idle UI, 0x04 = brewing UI (mutually exclusive). */
+  /** From DE1 StateInfo; when connected and major ≠ Espresso (0x04), idle layout is shown regardless of validity. */
   bool de1_state_valid;
   uint8_t de1_major_state;
 } deui_ui_status_t;

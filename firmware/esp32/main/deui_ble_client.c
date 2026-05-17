@@ -316,12 +316,8 @@ static void log_ble_de1_state_unlocked(void) {
       peer, addr[5], addr[4], addr[3], addr[2], addr[1], addr[0], maj, min, (int)st_ok);
 }
 
-/** Caller must hold `s_status_mtx`. */
+/** Caller must hold `s_status_mtx`. Espresso major (0x04) only — matches brewing UI / shot telemetry gating. */
 static bool de1_shot_time_should_show_unlocked(void) {
-  if (!s_live.de1_state_valid) {
-    return false;
-  }
-  /** DE1 is in Espresso major state — shot sample stream may be shown. */
   return s_live.de1_major_state == DE1_MAJOR_STATE_ESPRESSO;
 }
 
@@ -815,7 +811,7 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     }
 
     if (!parsed_ok) {
-      ESP_LOGW(TAG, "shot sample parse failed len=%u (need >=14 bytes)", (unsigned)pktlen);
+      ESP_LOGW(TAG, "shot sample parse failed len=%u (need >=12 bytes)", (unsigned)pktlen);
     }
 
     return 0;
@@ -1236,8 +1232,7 @@ void deui_ble_get_status(deui_ble_status_t *status) {
     status->machine_state_label[sizeof(status->machine_state_label) - 1] = '\0';
   }
 
-  bool shot_time =
-      status->connected && status->de1_state_valid && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+  bool shot_time = status->connected && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
   status->show_shot_time = shot_time;
   status->show_scale_weight = shot_time && s_scale_connected;
 
@@ -1265,32 +1260,30 @@ void deui_ble_get_status(deui_ble_status_t *status) {
   xSemaphoreGive(s_status_mtx);
 }
 
-static uint16_t u16_payload_le(const uint8_t *data) {
-  return (uint16_t)data[0] | ((uint16_t)data[1] << 8);
+/** ShotSample multi-byte fields are big-endian on the wire (matches `docs/de1-bluetooth-protocol.md` + `main/de1_ble_client.cpp`). */
+static uint16_t u16_payload_be(const uint8_t *data) {
+  return ((uint16_t)data[0] << 8) | (uint16_t)data[1];
 }
 
-static int32_t i24_payload_le(const uint8_t *data) {
-  int32_t raw = ((int32_t)data[0]) | ((int32_t)data[1] << 8) | ((int32_t)data[2] << 16);
-  if ((raw & 0x00800000) != 0) {
-    raw |= (int32_t)0xff000000;
-  }
-  return raw;
+static uint32_t u32_payload_be(const uint8_t *data) {
+  return ((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16) | ((uint32_t)data[2] << 8) | (uint32_t)data[3];
 }
 
 bool deui_ble_parse_shot_sample(const uint8_t *payload, size_t len, de1_shot_sample_t *out) {
-  if (payload == NULL || out == NULL || len < 14) {
+  if (payload == NULL || out == NULL || len < 12) {
     return false;
   }
 
   /*
-   * DE1 shot sample parsing follows existing DEUI conversion scales:
-   * pressure/flow fixed-point values are divided by 4096 and temperatures by 256/65536.
+   * ShotSample 0xa00d layout (first 12 bytes used here):
+   * sample_time ms uint16 BE @0; group_pressure / flow uint16 BE @2,@4 (divide by 4096 → bar, ml/s);
+   * mix °C uint16 BE @6 /256; head uint32 BE @8 /65536.
    */
-  out->sample_time = u16_payload_le(payload + 0);
-  out->group_pressure = (float)i24_payload_le(payload + 2) / 4096.0f;
-  out->group_flow = (float)i24_payload_le(payload + 5) / 4096.0f;
-  out->mix_temperature = (float)u16_payload_le(payload + 8) / 256.0f;
-  out->head_temperature = (float)u16_payload_le(payload + 10) / 65536.0f;
+  out->sample_time = u16_payload_be(payload + 0);
+  out->group_pressure = (float)u16_payload_be(payload + 2) / 4096.0f;
+  out->group_flow = (float)u16_payload_be(payload + 4) / 4096.0f;
+  out->mix_temperature = (float)u16_payload_be(payload + 6) / 256.0f;
+  out->head_temperature = (float)u32_payload_be(payload + 8) / 65536.0f;
   return true;
 }
 

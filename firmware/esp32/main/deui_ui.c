@@ -24,6 +24,7 @@ lv_obj_t *deui_ui_obj_metrics_card = NULL;
 LV_FONT_DECLARE(LabGrotesque_Regular_16);
 LV_FONT_DECLARE(LabGrotesque_Bold_48);
 LV_FONT_DECLARE(lv_font_montserrat_14);
+LV_FONT_DECLARE(lv_font_montserrat_40);
 
 static lv_obj_t *s_footer = NULL;
 static lv_obj_t *s_weight_label = NULL;
@@ -73,14 +74,17 @@ static const lv_font_t *font_value_48(void) {
   return &LabGrotesque_Bold_48;
 }
 
+/** Metrics grid numerals — built-in size, no transform (see file comment above). */
+static const lv_font_t *font_metric_value(void) {
+  return &lv_font_montserrat_40;
+}
+
 /**
- * Shot metric values use LVGL transform zoom (small on-card). The idle/search headline must stay at zoom 256:
- * partial LCD flushes (small draw buffer rows) often under-invalidate transformed layers, so scaled headlines
- * can fail to appear while simpler widgets (icons) still draw.
+ * Shot metric **values** must not use transform zoom: with ESP-IDF 5.x SPI partial flushes, zoomed layers
+ * often fail to repaint while captions (no zoom) still draw — looks like “labels but no numbers”.
+ * Idle headline stays on Bold 48 at default zoom (zoom 256).
  */
 enum {
-  /** Bold 48 scaled down so four metrics fit in a 2×2 grid on the round 360 panel. */
-  k_shot_metric_value_zoom = 118,
   /**
    * Arc value = physical × 100 (matches on-screen decimals): flow ml/s, pressure bar.
    * maxima must stay in sync with `lv_arc_set_range` in deui_ui_init.
@@ -295,24 +299,26 @@ static void create_shot_metric_cell(lv_obj_t *card, lv_obj_t **out_col, lv_obj_t
   lv_obj_add_flag(*out_lbl, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_set_style_bg_opa(*out_lbl, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_label_set_text(*out_lbl, caption);
-  /** Avoid LV_LABEL_LONG_WRAP + fixed width here — it can thrash LVGL's style allocator and starve IDLE (TWDT). */
+  /** Full cell width + CLIP so captions/values center in the quadrant (content-sized labels looked right-shifted). */
+  lv_obj_set_width(*out_lbl, cell_w);
+  lv_label_set_long_mode(*out_lbl, LV_LABEL_LONG_CLIP);
   lv_obj_set_style_text_color(*out_lbl, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
   lv_obj_set_style_text_font(*out_lbl, font_regular_16(), LV_PART_MAIN);
   lv_obj_set_style_text_align(*out_lbl, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(*out_lbl, LV_ALIGN_TOP_MID, 0, 2);
+  lv_obj_align(*out_lbl, LV_ALIGN_TOP_MID, 0, 0);
 
   *out_val = lv_label_create(*out_col);
   strip_default_theme(*out_val);
   lv_obj_add_flag(*out_val, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_set_style_bg_opa(*out_val, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_label_set_text(*out_val, "0");
+  lv_obj_set_width(*out_val, cell_w);
+  lv_label_set_long_mode(*out_val, LV_LABEL_LONG_CLIP);
   lv_obj_set_style_text_color(*out_val, lv_color_hex(theme->primary_text), LV_PART_MAIN);
-  lv_obj_set_style_text_font(*out_val, font_value_48(), LV_PART_MAIN);
+  lv_obj_set_style_text_font(*out_val, font_metric_value(), LV_PART_MAIN);
   lv_obj_set_style_text_align(*out_val, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_set_style_transform_zoom(*out_val, k_shot_metric_value_zoom, LV_PART_MAIN);
-  lv_obj_set_style_transform_pivot_x(*out_val, lv_pct(50), LV_PART_MAIN);
-  lv_obj_set_style_transform_pivot_y(*out_val, lv_pct(72), LV_PART_MAIN);
-  lv_obj_align(*out_val, LV_ALIGN_BOTTOM_MID, 0, -4);
+  /** Sit value directly under caption — avoids large TOP/BOTTOM gap inside the cell. */
+  lv_obj_align_to(*out_val, *out_lbl, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
   pin_label_no_theme_recolor(*out_lbl);
   pin_label_no_theme_recolor(*out_val);
 
@@ -616,6 +622,10 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, 
     set_textf(s_flow_value, "%.1f", flow_ml_s);
   }
 
+  if (deui_ui_obj_metrics_card != NULL) {
+    lv_obj_invalidate(deui_ui_obj_metrics_card);
+  }
+
   if (s_flow_arc != NULL) {
     if (!show_shot_metrics) {
       lv_arc_set_value(s_flow_arc, 0);
@@ -694,19 +704,17 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   }
 
   /** One mode at a time: visibility is owned by `deui_ui_screen_*.c`. */
-  const bool de1_idle = status->ble_connected && status->de1_state_valid &&
-                        (status->de1_major_state == DE1_MAJOR_STATE_IDLE);
-  const bool de1_brew = status->ble_connected && status->de1_state_valid &&
-                        (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+  /** Brewing chrome + arcs: DE1 major Espresso (0x04) only — `deui_ui_screen_apply_brewing` must stay in sync. */
+  const bool de1_brew =
+      status->ble_connected && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
 
   if (!status->ble_connected) {
     deui_ui_screen_apply_searching();
   } else if (de1_brew) {
     deui_ui_screen_apply_brewing();
-  } else if (de1_idle) {
-    deui_ui_screen_apply_idle(status->machine_state_center);
   } else {
-    deui_ui_screen_apply_status(status->machine_state_center);
+    /** Any connected non-Espresso major → idle layout (headline + metrics plate); never status-only layout. */
+    deui_ui_screen_apply_idle(status->machine_state_center);
   }
 
   const bool shot_layout = de1_brew;
@@ -729,6 +737,25 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
     } else {
       lv_obj_add_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
     }
+  }
+
+  /*
+   * Rings are full-panel siblings of the metrics card; ensure they stay behind the card whenever the
+   * card is shown so extraction numerals are not painted over. After Espresso, headline-only idle
+   * brings the metrics plate + title back without stale arc chrome on top.
+   */
+  if (s_flow_arc != NULL) {
+    lv_obj_move_background(s_flow_arc);
+  }
+  if (s_pressure_arc != NULL) {
+    lv_obj_move_background(s_pressure_arc);
+  }
+  const bool metrics_visible = status->ble_connected;
+  if (metrics_visible && deui_ui_obj_metrics_card != NULL) {
+    lv_obj_move_foreground(deui_ui_obj_metrics_card);
+  }
+  if (!de1_brew && status->ble_connected && deui_ui_obj_machine_state != NULL) {
+    lv_obj_move_foreground(deui_ui_obj_machine_state);
   }
 
   esp_lv_adapter_unlock();

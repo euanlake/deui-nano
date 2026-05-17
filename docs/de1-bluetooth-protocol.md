@@ -237,19 +237,25 @@ Byte 14-15: Target cold water temperature (uint16, big-endian, divide by 256)
 
 #### ShotSample Characteristic
 
+Wire format uses **big-endian** multi-byte integers. Values below match `main/de1_ble_client.cpp` and the ESP32 `deui_ble_parse_shot_sample` decoder (first 12 bytes).
+
 ```
-Byte 0-1:   Sample time (uint16, big-endian)
-Byte 2-3:   Group pressure (uint16, big-endian, divide by 4096)
-Byte 4-5:   Group flow (uint16, big-endian, divide by 4096)
-Byte 6-7:   Mix temperature (uint16, big-endian, divide by 256)
+Byte 0-1:   Sample time (uint16, big-endian), milliseconds
+Byte 2-3:   Group pressure (uint16, big-endian, divide by 4096 → bar)
+Byte 4-5:   Group flow (uint16, big-endian, divide by 4096 → ml/s)
+Byte 6-7:   Mix temperature (uint16, big-endian, divide by 256 → °C)
 Byte 8-11:  Head temperature (uint32, big-endian, divide by 65536)
-Byte 11-12: Set mix temperature (uint16, big-endian, divide by 256)
-Byte 13-14: Set head temperature (uint16, big-endian, divide by 256)
-Byte 15:    Set group pressure (uint8, divide by 16)
-Byte 16:    Set group flow (uint8, divide by 16)
-Byte 17:    Frame number (uint8)
-Byte 18:    Steam temperature (uint8)
+Byte 12-13: Set mix temperature (uint16, big-endian, divide by 256)
+Byte 14-15: Set head temperature (uint16, big-endian, divide by 256)
+Byte 16:    Set group pressure (uint8, divide by 16)
+Byte 17:    Set group flow (uint8, divide by 16)
+Byte 18:    Frame number (uint8)
+Byte 19:    Steam temperature (uint8)
 ```
+
+Full notifications are typically **≥ 19 bytes**; decoding pressure/flow/mix/head only requires **≥ 12 bytes**.
+
+Some older reference parsers treat head temperature as four bytes ending at index 11 but then read set mix from indices 11–12, which double-uses byte 11; treat extended fields (setpoints onward) as best-effort unless verified against your firmware stream.
 
 #### WaterLevels Characteristic
 
