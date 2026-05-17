@@ -18,6 +18,7 @@ typedef struct {
 esp_err_t deui_scale_init(void);
 void deui_scale_tick(bool allow_scan);
 void deui_scale_get_status(deui_scale_status_t *status);
+esp_err_t deui_scale_send_tare(void);
 
 /**
  * Parse a BOOKOO 20-byte packet.
