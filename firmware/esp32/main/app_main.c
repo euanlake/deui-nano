@@ -3,6 +3,7 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 
@@ -19,12 +20,17 @@
 #include "wifi_setup.h"
 
 static const char *TAG = "deui_main";
+enum {
+  k_de1_minor_preinfuse = 0x04,
+};
 
 void app_main(void) {
   QueueHandle_t input_queue = xQueueCreate(32, sizeof(lm_ctrl_input_event_t));
   lv_disp_t *display = NULL;
   lm_ctrl_input_event_t event;
   uint8_t previous_major_state = 0xff;
+  bool shot_timer_armed = false;
+  int64_t shot_timer_start_us = 0;
 
   ESP_LOGI(TAG, "DEUI firmware starting (ST77916 + CST816)");
 
@@ -113,11 +119,26 @@ void app_main(void) {
     deui_ui_update_status(&ui_status);
 
     float w_g = ble_status.weight_g;
-    float t_s = ble_status.shot_time_s;
+    float t_s = 0.f;
     float flow = ble_status.flow_ml_s;
     float bar = ble_status.pressure_bar;
     const bool brew_ui = ble_status.connected && ble_status.de1_state_valid &&
                          (ble_status.de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+    const bool preinfuse_or_later =
+        brew_ui && (ble_status.de1_minor_state >= k_de1_minor_preinfuse);
+    if (!brew_ui) {
+      shot_timer_armed = false;
+      shot_timer_start_us = 0;
+    } else if (preinfuse_or_later && !shot_timer_armed) {
+      shot_timer_start_us = esp_timer_get_time();
+      shot_timer_armed = true;
+    }
+    if (shot_timer_armed && shot_timer_start_us > 0) {
+      t_s = (float)(esp_timer_get_time() - shot_timer_start_us) / 1000000.0f;
+      if (t_s < 0.f) {
+        t_s = 0.f;
+      }
+    }
     bool shot_metrics = brew_ui;
     if (!shot_metrics) {
       w_g = 0.f;

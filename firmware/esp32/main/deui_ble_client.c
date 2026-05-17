@@ -1239,7 +1239,7 @@ void deui_ble_get_status(deui_ble_status_t *status) {
   bool shot_time =
       status->connected && status->de1_state_valid && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
   status->show_shot_time = shot_time;
-  status->show_scale_weight = shot_time && s_scale_connected && s_scale_has_weight;
+  status->show_scale_weight = shot_time && s_scale_connected;
 
   if (!shot_time) {
     status->weight_g = 0.f;

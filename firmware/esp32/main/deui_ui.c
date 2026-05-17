@@ -87,6 +87,12 @@ enum {
    */
   k_flow_arc_max = 1200,
   k_pressure_arc_max = 1200,
+  /** Draw a short marker centered on the value (0.5 "number" wide = +/-0.25). */
+  k_arc_marker_half_width = 25,
+  /** Arc value space for one full clock-face revolution (12.00 units). */
+  k_arc_revolution = 1200,
+  /** Indicator value used to fully fill the current marker span. */
+  k_arc_marker_fill = 100,
 };
 
 /** Flow/pressure ring colours and track: always from `deui_theme.h` palette (flow_arc, pressure_arc, arc_track). */
@@ -118,12 +124,55 @@ static void sync_metrics_card_chrome(const deui_theme_palette_t *theme) {
   }
   if (s_metrics_shot_layout) {
     lv_obj_set_style_bg_color(deui_ui_obj_metrics_card, lv_color_hex(theme->card_bg), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(deui_ui_obj_metrics_card, LV_OPA_COVER, LV_PART_MAIN);
+    /** Keep capsule readable but translucent so shot arcs stay visible beneath it. */
+    lv_obj_set_style_bg_opa(deui_ui_obj_metrics_card, LV_OPA_80, LV_PART_MAIN);
     lv_obj_set_style_border_width(deui_ui_obj_metrics_card, theme->card_border_width, LV_PART_MAIN);
     lv_obj_set_style_border_color(deui_ui_obj_metrics_card, lv_color_hex(theme->card_border), LV_PART_MAIN);
   } else {
     lv_obj_set_style_bg_opa(deui_ui_obj_metrics_card, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(deui_ui_obj_metrics_card, 0, LV_PART_MAIN);
+  }
+}
+
+static int wrap_arc_revolution(int value) {
+  int wrapped = value % k_arc_revolution;
+  if (wrapped < 0) {
+    wrapped += k_arc_revolution;
+  }
+  return wrapped;
+}
+
+static uint16_t value_to_clock_angle(int value_cent) {
+  const int v = wrap_arc_revolution(value_cent);
+  int angle = 270 + (v * 360) / k_arc_revolution;
+  angle %= 360;
+  if (angle < 0) {
+    angle += 360;
+  }
+  return (uint16_t)angle;
+}
+
+static void set_arc_marker(lv_obj_t *arc, int value_cent, int max_cent) {
+  if (arc == NULL || max_cent <= 0) {
+    return;
+  }
+
+  int clamped = value_cent;
+  if (clamped < 0) {
+    clamped = 0;
+  }
+  if (clamped > max_cent) {
+    clamped = max_cent;
+  }
+
+  const int scaled = (clamped * k_arc_revolution) / max_cent;
+  const int start_v = wrap_arc_revolution(scaled - k_arc_marker_half_width);
+  const int end_v = wrap_arc_revolution(scaled + k_arc_marker_half_width);
+  const uint16_t start_ang = value_to_clock_angle(start_v);
+  const uint16_t end_ang = value_to_clock_angle(end_v);
+  lv_arc_set_bg_angles(arc, start_ang, (end_ang >= start_ang) ? end_ang : (uint16_t)(end_ang + 360));
+  if (lv_arc_get_value(arc) != k_arc_marker_fill) {
+    lv_arc_set_value(arc, k_arc_marker_fill);
   }
 }
 
@@ -350,34 +399,33 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
    * stays visible around the capsule on the round display. Colours: deui_theme_palette_t.flow_arc /
    * pressure_arc / arc_track only.
    */
-  const lv_coord_t arc_sz = lcd_w - 8;
+  const lv_coord_t flow_arc_sz = lcd_w - 8;
+  const lv_coord_t pressure_arc_sz = lcd_w - 24;
 
   s_flow_arc = lv_arc_create(root);
   strip_default_theme(s_flow_arc);
-  lv_obj_set_size(s_flow_arc, arc_sz, arc_sz);
+  lv_obj_set_size(s_flow_arc, flow_arc_sz, flow_arc_sz);
   lv_obj_align(s_flow_arc, LV_ALIGN_CENTER, 0, 0);
   lv_obj_clear_flag(s_flow_arc, LV_OBJ_FLAG_CLICKABLE);
-  lv_arc_set_rotation(s_flow_arc, 270);
-  lv_arc_set_bg_angles(s_flow_arc, 0, 240);
+  lv_arc_set_bg_angles(s_flow_arc, 262, 278);
   lv_arc_set_mode(s_flow_arc, LV_ARC_MODE_NORMAL);
-  lv_arc_set_range(s_flow_arc, 0, k_flow_arc_max);
-  lv_arc_set_value(s_flow_arc, 0);
-  lv_obj_set_style_arc_width(s_flow_arc, 12, LV_PART_INDICATOR);
-  lv_obj_set_style_arc_width(s_flow_arc, 12, LV_PART_MAIN);
+  lv_arc_set_range(s_flow_arc, 0, k_arc_marker_fill);
+  lv_arc_set_value(s_flow_arc, k_arc_marker_fill);
+  lv_obj_set_style_arc_width(s_flow_arc, 10, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_width(s_flow_arc, 10, LV_PART_MAIN);
   lv_obj_set_style_pad_all(s_flow_arc, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_all(s_flow_arc, 0, LV_PART_KNOB);
 
   s_pressure_arc = lv_arc_create(root);
   strip_default_theme(s_pressure_arc);
-  lv_obj_set_size(s_pressure_arc, arc_sz, arc_sz);
+  lv_obj_set_size(s_pressure_arc, pressure_arc_sz, pressure_arc_sz);
   lv_obj_align(s_pressure_arc, LV_ALIGN_CENTER, 0, 0);
   lv_obj_clear_flag(s_pressure_arc, LV_OBJ_FLAG_CLICKABLE);
-  lv_arc_set_rotation(s_pressure_arc, 270);
-  lv_arc_set_bg_angles(s_pressure_arc, 0, 300);
-  lv_arc_set_range(s_pressure_arc, 0, k_pressure_arc_max);
-  lv_arc_set_value(s_pressure_arc, 0);
-  lv_obj_set_style_arc_width(s_pressure_arc, 12, LV_PART_INDICATOR);
-  lv_obj_set_style_arc_width(s_pressure_arc, 12, LV_PART_MAIN);
+  lv_arc_set_bg_angles(s_pressure_arc, 262, 278);
+  lv_arc_set_range(s_pressure_arc, 0, k_arc_marker_fill);
+  lv_arc_set_value(s_pressure_arc, k_arc_marker_fill);
+  lv_obj_set_style_arc_width(s_pressure_arc, 10, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_width(s_pressure_arc, 10, LV_PART_MAIN);
   lv_obj_set_style_pad_all(s_pressure_arc, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_all(s_pressure_arc, 0, LV_PART_KNOB);
 
@@ -574,16 +622,8 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, 
       lv_obj_add_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_clear_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
-      int flow = (int)(flow_ml_s * 100.0f + 0.5f);
-      if (flow < 0) {
-        flow = 0;
-      }
-      if (flow > k_flow_arc_max) {
-        flow = k_flow_arc_max;
-      }
-      if (lv_arc_get_value(s_flow_arc) != flow) {
-        lv_arc_set_value(s_flow_arc, flow);
-      }
+      const int flow = (int)(flow_ml_s * 100.0f + 0.5f);
+      set_arc_marker(s_flow_arc, flow, k_flow_arc_max);
     }
   }
   if (s_pressure_arc != NULL) {
@@ -592,16 +632,8 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, 
       lv_obj_add_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_clear_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
-      int pressure = (int)(pressure_bar * 100.0f + 0.5f);
-      if (pressure < 0) {
-        pressure = 0;
-      }
-      if (pressure > k_pressure_arc_max) {
-        pressure = k_pressure_arc_max;
-      }
-      if (lv_arc_get_value(s_pressure_arc) != pressure) {
-        lv_arc_set_value(s_pressure_arc, pressure);
-      }
+      const int pressure = (int)(pressure_bar * 100.0f + 0.5f);
+      set_arc_marker(s_pressure_arc, pressure, k_pressure_arc_max);
     }
   }
 
@@ -683,6 +715,20 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
     deui_theme_palette_t theme;
     deui_theme_palette_for_mode(s_theme_mode, &theme);
     sync_metrics_card_chrome(&theme);
+  }
+  if (s_flow_arc != NULL) {
+    if (shot_layout) {
+      lv_obj_clear_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+  if (s_pressure_arc != NULL) {
+    if (shot_layout) {
+      lv_obj_clear_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
+    }
   }
 
   esp_lv_adapter_unlock();

@@ -16,6 +16,7 @@
 #include "board_config.h"
 
 static const char *TAG = "lm_display";
+static const uint8_t k_touch_i2c_addr = ESP_LCD_TOUCH_IO_I2C_CST816S_ADDRESS;
 
 static i2c_master_bus_handle_t s_i2c_bus = NULL;
 static esp_lcd_panel_io_handle_t s_panel_io = NULL;
@@ -45,6 +46,18 @@ static void lm_cst816_wake_on_bus(i2c_master_bus_handle_t bus) {
   }
   i2c_master_bus_rm_device(dev);
   vTaskDelay(pdMS_TO_TICKS(10));
+}
+
+static void lm_log_touch_probe(i2c_master_bus_handle_t bus) {
+  if (bus == NULL) {
+    return;
+  }
+  const esp_err_t err = i2c_master_probe(bus, k_touch_i2c_addr, 100);
+  if (err == ESP_OK) {
+    ESP_LOGI(TAG, "CST816 probe OK at 0x%02X", k_touch_i2c_addr);
+  } else {
+    ESP_LOGW(TAG, "CST816 probe failed at 0x%02X: %s", k_touch_i2c_addr, esp_err_to_name(err));
+  }
 }
 
 static const st77916_lcd_init_cmd_t s_init_cmds[] = {
@@ -294,7 +307,7 @@ esp_err_t lm_ctrl_display_init(lv_disp_t **out_display) {
     },
   };
   ESP_RETURN_ON_ERROR(i2c_new_master_bus(&i2c_config, &s_i2c_bus), TAG, "I2C bus init failed");
-  lm_cst816_wake_on_bus(s_i2c_bus);
+  lm_log_touch_probe(s_i2c_bus);
 
   esp_lcd_touch_config_t touch_config = {
     .x_max = LM_CTRL_LCD_H_RES,
@@ -315,9 +328,23 @@ esp_err_t lm_ctrl_display_init(lv_disp_t **out_display) {
   esp_lcd_panel_io_i2c_config_t touch_io_config = ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG();
   /* Keep default 100 kHz from CST816 panel IO helper (avoid overriding to 300 kHz). */
   ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(s_i2c_bus, &touch_io_config, &touch_io), TAG, "Touch IO init failed");
-  esp_err_t touch_err = esp_lcd_touch_new_i2c_cst816s(touch_io, &touch_config, &s_touch);
+  esp_err_t touch_err = ESP_FAIL;
+  for (int attempt = 1; attempt <= 3; ++attempt) {
+    if (attempt > 1) {
+      lm_cst816_wake_on_bus(s_i2c_bus);
+      vTaskDelay(pdMS_TO_TICKS(30));
+    }
+    touch_err = esp_lcd_touch_new_i2c_cst816s(touch_io, &touch_config, &s_touch);
+    if (touch_err == ESP_OK) {
+      break;
+    }
+    ESP_LOGW(TAG, "Touch init attempt %d/3 failed: %s", attempt, esp_err_to_name(touch_err));
+    lm_log_touch_probe(s_i2c_bus);
+  }
   if (touch_err != ESP_OK) {
-    ESP_LOGW(TAG, "Touch controller init failed (%s); continuing without touch", esp_err_to_name(touch_err));
+    ESP_LOGW(TAG,
+             "Touch controller init failed (%s); continuing without touch (check SDA/SCL/RST pin map)",
+             esp_err_to_name(touch_err));
     esp_lcd_panel_io_del(touch_io);
     s_touch = NULL;
   }
