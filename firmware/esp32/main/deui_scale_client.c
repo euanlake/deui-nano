@@ -19,6 +19,7 @@ static const char *TAG = "deui_scale";
 
 static const char *const k_scale_svc_str = "00000ffe-0000-1000-8000-00805f9b34fb";
 static const char *const k_scale_data_chr_str = "0000ff11-0000-1000-8000-00805f9b34fb";
+static const char *const k_scale_cmd_chr_str = "0000ff12-0000-1000-8000-00805f9b34fb";
 
 /** Bookoo packet constants (bytes 7-9 = 24-bit magnitude, byte 6 indicates sign). */
 enum {
@@ -42,6 +43,7 @@ static bool s_initialized;
 
 static ble_uuid_any_t s_uuid_scale_svc;
 static ble_uuid_any_t s_uuid_scale_data;
+static ble_uuid_any_t s_uuid_scale_cmd;
 
 static bool s_connect_pending;
 static ble_addr_t s_pending_addr;
@@ -50,6 +52,7 @@ static char s_pending_name[32];
 static bool s_scale_discovery_pending;
 static uint16_t s_scale_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t s_scale_data_val_handle;
+static uint16_t s_scale_cmd_val_handle;
 static int64_t s_next_scan_us;
 static int64_t s_last_weight_log_us;
 
@@ -60,6 +63,8 @@ static void reset_scale_connection_state(void);
 static void on_scale_disc_complete(const struct peer *peer, int status, void *arg);
 static int on_scale_cccd_written(uint16_t conn_handle, const struct ble_gatt_error *error,
                                  struct ble_gatt_attr *attr, void *arg);
+
+static const uint8_t k_bookoo_tare_cmd[6] = {0x03, 0x0a, 0x01, 0x00, 0x00, 0x08};
 
 bool deui_scale_parse_bookoo_packet(const uint8_t *packet, uint16_t len, float *weight_g_out,
                                     int *battery_percent_out) {
@@ -103,7 +108,8 @@ esp_err_t deui_scale_init(void) {
   memset(s_pending_name, 0, sizeof(s_pending_name));
 
   if (ble_uuid_from_str(&s_uuid_scale_svc, k_scale_svc_str) != 0 ||
-      ble_uuid_from_str(&s_uuid_scale_data, k_scale_data_chr_str) != 0) {
+      ble_uuid_from_str(&s_uuid_scale_data, k_scale_data_chr_str) != 0 ||
+      ble_uuid_from_str(&s_uuid_scale_cmd, k_scale_cmd_chr_str) != 0) {
     ESP_LOGE(TAG, "Invalid BOOKOO UUID constants");
     return ESP_FAIL;
   }
@@ -124,6 +130,25 @@ void deui_scale_get_status(deui_scale_status_t *status) {
   }
   memcpy(status, &s_scale_status, sizeof(*status));
   xSemaphoreGive(s_scale_mtx);
+}
+
+esp_err_t deui_scale_send_tare(void) {
+  if (!s_initialized || s_scale_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+    return ESP_ERR_INVALID_STATE;
+  }
+  if (s_scale_cmd_val_handle == 0) {
+    return ESP_ERR_NOT_FOUND;
+  }
+
+  ESP_LOGI(TAG, "Scale tare command: sending");
+  int rc = ble_gattc_write_flat(s_scale_conn_handle, s_scale_cmd_val_handle, k_bookoo_tare_cmd,
+                                sizeof(k_bookoo_tare_cmd), NULL, NULL);
+  if (rc != 0) {
+    ESP_LOGW(TAG, "Scale tare command failed rc=%d", rc);
+    return ESP_FAIL;
+  }
+  ESP_LOGI(TAG, "Scale tare command sent");
+  return ESP_OK;
 }
 
 void deui_scale_tick(bool allow_scan) {
@@ -397,6 +422,16 @@ static void on_scale_disc_complete(const struct peer *peer, int status, void *ar
   }
 
   s_scale_data_val_handle = data_chr->chr.val_handle;
+
+  const struct peer_chr *cmd_chr =
+      peer_chr_find_uuid(peer, (const ble_uuid_t *)&s_uuid_scale_svc, (const ble_uuid_t *)&s_uuid_scale_cmd);
+  if (cmd_chr == NULL) {
+    ESP_LOGW(TAG, "BOOKOO command characteristic missing (tare unavailable)");
+    s_scale_cmd_val_handle = 0;
+  } else {
+    s_scale_cmd_val_handle = cmd_chr->chr.val_handle;
+  }
+
   uint8_t notify_on[2] = {1, 0};
   int rc = ble_gattc_write_flat(peer->conn_handle, cccd->dsc.handle, notify_on, sizeof(notify_on),
                                 on_scale_cccd_written, NULL);
@@ -431,6 +466,7 @@ static int on_scale_cccd_written(uint16_t conn_handle, const struct ble_gatt_err
 static void reset_scale_connection_state(void) {
   s_scale_conn_handle = BLE_HS_CONN_HANDLE_NONE;
   s_scale_data_val_handle = 0;
+  s_scale_cmd_val_handle = 0;
   s_scale_discovery_pending = false;
   s_connect_pending = false;
   s_last_weight_log_us = 0;

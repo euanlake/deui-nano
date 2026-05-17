@@ -24,6 +24,7 @@ void app_main(void) {
   QueueHandle_t input_queue = xQueueCreate(32, sizeof(lm_ctrl_input_event_t));
   lv_disp_t *display = NULL;
   lm_ctrl_input_event_t event;
+  uint8_t previous_major_state = 0xff;
 
   ESP_LOGI(TAG, "DEUI firmware starting (ST77916 + CST816)");
 
@@ -79,6 +80,18 @@ void app_main(void) {
     deui_ble_get_status(&ble_status);
     deui_wifi_get_info(&wifi_info);
     lm_ctrl_power_get_info(&power_info);
+
+    const bool entered_espresso = (previous_major_state != DE1_MAJOR_STATE_ESPRESSO) &&
+                                  (ble_status.de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+    if (entered_espresso && scale_status.connected) {
+      esp_err_t tare_rc = deui_scale_send_tare();
+      if (tare_rc != ESP_OK) {
+        ESP_LOGW(TAG, "Auto-tare on Espresso entry failed: %s", esp_err_to_name(tare_rc));
+      } else {
+        ESP_LOGI(TAG, "Auto-tare triggered on Espresso entry");
+      }
+    }
+    previous_major_state = ble_status.de1_major_state;
 
     ui_status.ble_connected = ble_status.connected;
     ui_status.wifi_connected = wifi_info.sta_connected;
