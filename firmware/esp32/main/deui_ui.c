@@ -41,6 +41,7 @@ static lv_obj_t *s_flow_value = NULL;
 /** LVGL FontAwesome symbols — lower round "safe" zone, away from clipped top corners. */
 static lv_obj_t *s_ble_icon = NULL;
 static lv_obj_t *s_wifi_icon = NULL;
+static lv_obj_t *s_scale_icon = NULL;
 static lv_obj_t *s_usb = NULL;
 static lv_obj_t *s_battery = NULL;
 static lv_obj_t *s_ring = NULL;
@@ -49,6 +50,7 @@ static lv_obj_t *s_pressure_arc = NULL;
 
 static bool s_ble_icon_pulse = true;
 static bool s_wifi_icon_pulse = true;
+static bool s_scale_icon_pulse = true;
 static bool s_link_pulse_phase = false;
 static int64_t s_link_next_pulse_us = 0;
 
@@ -191,6 +193,10 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
     lv_obj_set_style_text_color(s_wifi_icon, lv_color_hex(theme->primary_text), LV_PART_MAIN);
     lv_obj_set_style_color_filter_opa(s_wifi_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   }
+  if (s_scale_icon != NULL) {
+    lv_obj_set_style_text_color(s_scale_icon, lv_color_hex(theme->primary_text), LV_PART_MAIN);
+    lv_obj_set_style_color_filter_opa(s_scale_icon, LV_OPA_TRANSP, LV_PART_MAIN);
+  }
   if (s_footer != NULL) {
     lv_obj_set_style_text_color(s_footer, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
   }
@@ -216,6 +222,7 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
   pin_label_no_theme_recolor(deui_ui_obj_machine_state);
   pin_label_no_theme_recolor(s_ble_icon);
   pin_label_no_theme_recolor(s_wifi_icon);
+  pin_label_no_theme_recolor(s_scale_icon);
   pin_label_no_theme_recolor(s_footer);
   pin_label_no_theme_recolor(s_usb);
   pin_label_no_theme_recolor(s_battery);
@@ -451,9 +458,21 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_color(s_wifi_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
   lv_obj_set_style_color_filter_opa(s_wifi_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_text_align(s_wifi_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(s_wifi_icon, LV_ALIGN_CENTER, 34, 133);
+  lv_obj_align(s_wifi_icon, LV_ALIGN_CENTER, 56, 133);
+
+  s_scale_icon = lv_label_create(root);
+  strip_default_theme(s_scale_icon);
+  /** No dedicated LVGL "scale" glyph in built-ins; `DRIVE` reads well as a compact scale-like icon. */
+  lv_label_set_text(s_scale_icon, LV_SYMBOL_DRIVE);
+  lv_obj_set_style_text_font(s_scale_icon, &lv_font_montserrat_14, LV_PART_MAIN);
+  lv_obj_set_style_text_color(s_scale_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
+  lv_obj_set_style_color_filter_opa(s_scale_icon, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_style_text_align(s_scale_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+  lv_obj_align(s_scale_icon, LV_ALIGN_CENTER, 0, 133);
+  lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -56, 133);
   pin_label_no_theme_recolor(s_ble_icon);
   pin_label_no_theme_recolor(s_wifi_icon);
+  pin_label_no_theme_recolor(s_scale_icon);
 
   s_footer = lv_label_create(root);
   strip_default_theme(s_footer);
@@ -501,6 +520,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   s_link_next_pulse_us = esp_timer_get_time();
   status_icon_apply(s_ble_icon, s_ble_icon_pulse);
   status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
+  status_icon_apply(s_scale_icon, s_scale_icon_pulse);
 
   if (deui_ui_obj_machine_state != NULL) {
     lv_obj_move_foreground(deui_ui_obj_machine_state);
@@ -599,9 +619,19 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
 
   s_ble_icon_pulse = !status->ble_connected;
   s_wifi_icon_pulse = !status->wifi_connected;
+  s_scale_icon_pulse = !status->scale_connected && status->scale_scanning;
 
   status_icon_apply(s_ble_icon, s_ble_icon_pulse);
   status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
+  if (status->scale_connected) {
+    status_icon_apply(s_scale_icon, false);
+  } else if (status->scale_scanning) {
+    status_icon_apply(s_scale_icon, true);
+  } else if (s_scale_icon != NULL) {
+    lv_obj_set_style_text_color(s_scale_icon, lv_color_hex(s_color_subtle_fg), LV_PART_MAIN);
+    lv_obj_set_style_text_opa(s_scale_icon, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_color_filter_opa(s_scale_icon, LV_OPA_TRANSP, LV_PART_MAIN);
+  }
 
   if (s_footer != NULL) {
     /** Peer name / address line omitted — BLE status is the icons only. */
@@ -681,6 +711,11 @@ void deui_ui_indicate_ring_step(int delta) {
     apply_theme_palette(&theme);
     status_icon_apply(s_ble_icon, s_ble_icon_pulse);
     status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
+    if (s_scale_icon_pulse) {
+      status_icon_apply(s_scale_icon, true);
+    } else {
+      status_icon_apply(s_scale_icon, false);
+    }
   }
 
   s_ring_count += delta;
@@ -707,6 +742,9 @@ void deui_ui_tick(void) {
       }
       if (s_wifi_icon_pulse) {
         status_icon_apply(s_wifi_icon, true);
+      }
+      if (s_scale_icon_pulse) {
+        status_icon_apply(s_scale_icon, true);
       }
       esp_lv_adapter_unlock();
     }

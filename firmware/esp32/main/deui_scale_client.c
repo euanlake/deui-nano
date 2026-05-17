@@ -51,6 +51,7 @@ static bool s_scale_discovery_pending;
 static uint16_t s_scale_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t s_scale_data_val_handle;
 static int64_t s_next_scan_us;
+static int64_t s_last_weight_log_us;
 
 static int on_scale_gap_event(struct ble_gap_event *event, void *arg);
 static void start_scale_scan(void);
@@ -193,6 +194,7 @@ static void start_scale_scan(void) {
   }
 
   struct ble_gap_disc_params p = {.filter_duplicates = 1, .passive = 0};
+  ESP_LOGI(TAG, "Scale search attempt: starting BOOKOO scan window");
   rc = ble_gap_disc(own_addr_type, BLE_HS_FOREVER, &p, on_scale_gap_event, NULL);
   if (rc != 0) {
     ESP_LOGD(TAG, "scale ble_gap_disc rc=%d", rc);
@@ -204,7 +206,7 @@ static void start_scale_scan(void) {
     s_scale_status.scanning = true;
     xSemaphoreGive(s_scale_mtx);
   }
-  ESP_LOGI(TAG, "Scanning for BOOKOO Theme Mini...");
+  ESP_LOGI(TAG, "Scale search active: scanning for BOOKOO Theme Mini");
 }
 
 static void connect_pending_scale(void) {
@@ -216,7 +218,7 @@ static void connect_pending_scale(void) {
     return;
   }
 
-  ESP_LOGI(TAG, "Connecting to BOOKOO scale peer=\"%s\" addr=%s",
+  ESP_LOGI(TAG, "Scale connect attempt: peer=\"%s\" addr=%s",
            s_pending_name[0] != '\0' ? s_pending_name : "(no name)", addr_str(s_pending_addr.val));
 
   rc = ble_gap_connect(own_addr_type, &s_pending_addr, 30000, NULL, on_scale_gap_event, NULL);
@@ -307,7 +309,7 @@ static int on_scale_gap_event(struct ble_gap_event *event, void *arg) {
       s_scale_status.device_name[sizeof(s_scale_status.device_name) - 1] = '\0';
       xSemaphoreGive(s_scale_mtx);
     }
-    ESP_LOGI(TAG, "Scale connected, discovering BOOKOO chars...");
+    ESP_LOGI(TAG, "Scale connection successful: discovering BOOKOO characteristics");
     return 0;
 
   case BLE_GAP_EVENT_NOTIFY_RX: {
@@ -337,6 +339,10 @@ static int on_scale_gap_event(struct ble_gap_event *event, void *arg) {
       s_scale_status.battery_percent = battery;
       s_scale_status.last_update_us = esp_timer_get_time();
       xSemaphoreGive(s_scale_mtx);
+    }
+    if (s_scale_status.last_update_us - s_last_weight_log_us >= 2000000) {
+      s_last_weight_log_us = s_scale_status.last_update_us;
+      ESP_LOGI(TAG, "Scale weight update: %.2fg (battery %d%%)", weight_g, battery);
     }
     return 0;
   }
@@ -427,6 +433,7 @@ static void reset_scale_connection_state(void) {
   s_scale_data_val_handle = 0;
   s_scale_discovery_pending = false;
   s_connect_pending = false;
+  s_last_weight_log_us = 0;
 
   if (xSemaphoreTake(s_scale_mtx, pdMS_TO_TICKS(50)) == pdTRUE) {
     s_scale_status.connected = false;
