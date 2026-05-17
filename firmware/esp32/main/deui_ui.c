@@ -45,7 +45,6 @@ static lv_obj_t *s_wifi_icon = NULL;
 static lv_obj_t *s_scale_icon = NULL;
 static lv_obj_t *s_usb = NULL;
 static lv_obj_t *s_battery = NULL;
-static lv_obj_t *s_ring = NULL;
 static lv_obj_t *s_flow_arc = NULL;
 static lv_obj_t *s_pressure_arc = NULL;
 
@@ -63,8 +62,6 @@ static deui_theme_mode_t s_theme_mode = DEUI_THEME_MODE_DARK;
 /** True: solid metrics “capsule” while pulling a shot; false: transparent plate under idle/search + zeroed grid. */
 static bool s_metrics_shot_layout = false;
 
-static int64_t s_ring_until_us = 0;
-static int s_ring_count = 0;
 
 static const lv_font_t *font_regular_16(void) {
   return &LabGrotesque_Regular_16;
@@ -259,9 +256,6 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
   if (s_battery != NULL) {
     lv_obj_set_style_text_color(s_battery, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
   }
-  if (s_ring != NULL) {
-    lv_obj_set_style_text_color(s_ring, lv_color_hex(theme->accent_ring), LV_PART_MAIN);
-  }
   sync_metrics_card_chrome(theme);
 
   pin_label_no_theme_recolor(s_weight_label);
@@ -279,7 +273,6 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
   pin_label_no_theme_recolor(s_footer);
   pin_label_no_theme_recolor(s_usb);
   pin_label_no_theme_recolor(s_battery);
-  pin_label_no_theme_recolor(s_ring);
 }
 
 static void create_shot_metric_cell(lv_obj_t *card, lv_obj_t **out_col, lv_obj_t **out_lbl, lv_obj_t **out_val,
@@ -372,6 +365,56 @@ static void status_icon_apply(lv_obj_t *icon, bool pulse) {
 }
 
 /**
+ * Rotary / swipe: delta > 0 → light theme, delta < 0 → dark.
+ * Caller must already hold `esp_lv_adapter_lock` (LVGL worker invokes gestures under that lock).
+ */
+static void deui_ui_theme_nudge_locked(int delta) {
+  bool to_light = (delta > 0 && s_theme_mode == DEUI_THEME_MODE_DARK);
+  bool to_dark = (delta < 0 && s_theme_mode == DEUI_THEME_MODE_LIGHT);
+  if (to_light) {
+    s_theme_mode = DEUI_THEME_MODE_LIGHT;
+  } else if (to_dark) {
+    s_theme_mode = DEUI_THEME_MODE_DARK;
+  }
+  if (to_light || to_dark) {
+    deui_theme_palette_t theme;
+    deui_theme_palette_for_mode(s_theme_mode, &theme);
+    s_color_primary_text = theme.primary_text;
+    apply_theme_palette(&theme);
+    status_icon_apply(s_ble_icon, s_ble_icon_pulse);
+    status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
+    if (s_scale_icon_pulse) {
+      status_icon_apply(s_scale_icon, true);
+    } else {
+      status_icon_apply(s_scale_icon, false);
+    }
+  }
+}
+
+/** Touch: swipe changes theme (same mapping as rotary — right/bottom → lighter, left/top → darker). */
+static void root_gesture_theme_cb(lv_event_t *e) {
+  if (lv_event_get_code(e) != LV_EVENT_GESTURE) {
+    return;
+  }
+  lv_indev_t *indev = lv_indev_get_act();
+  if (indev == NULL) {
+    return;
+  }
+  lv_dir_t dir = lv_indev_get_gesture_dir(indev);
+  int delta = 0;
+  if (dir == LV_DIR_RIGHT || dir == LV_DIR_BOTTOM) {
+    delta = 1;
+  } else if (dir == LV_DIR_LEFT || dir == LV_DIR_TOP) {
+    delta = -1;
+  }
+  if (delta == 0) {
+    return;
+  }
+  lv_indev_wait_release(indev);
+  deui_ui_theme_nudge_locked(delta);
+}
+
+/**
  * LVGL APIs are not safe to call concurrently with esp_lv_adapter's worker (which owns lv_timer_handler()).
  * All UI setup and updates must run under esp_lv_adapter_lock(); app_main must not call lv_timer_handler().
  */
@@ -401,9 +444,9 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   }
 
   /*
-   * Shot arcs sit behind the metrics card (see z-order). Near full panel diameter so the ring
-   * stays visible around the capsule on the round display. Colours: deui_theme_palette_t.flow_arc /
-   * pressure_arc / arc_track only.
+   * Shot arcs are full-panel siblings of the metrics card. Z-order is controlled in
+   * `deui_ui_update_status`: during brewing we move arcs above the card so they are not clipped.
+   * Colours: deui_theme_palette_t.flow_arc / pressure_arc / arc_track only.
    */
   const lv_coord_t flow_arc_sz = lcd_w - 8;
   const lv_coord_t pressure_arc_sz = lcd_w - 24;
@@ -558,18 +601,9 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_label_set_text(s_battery, "PWR");
   lv_obj_add_flag(s_battery, LV_OBJ_FLAG_HIDDEN);
 
-  s_ring = lv_label_create(root);
-  strip_default_theme(s_ring);
-  lv_obj_set_style_bg_opa(s_ring, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_align(s_ring, LV_ALIGN_BOTTOM_MID, 0, -18);
-  lv_obj_set_style_text_font(s_ring, font_regular_16(), LV_PART_MAIN);
-  lv_obj_set_style_text_color(s_ring, lv_color_hex(theme.accent_ring), LV_PART_MAIN);
-  lv_label_set_text(s_ring, "RING 0");
-  lv_obj_add_flag(s_ring, LV_OBJ_FLAG_HIDDEN);
   pin_label_no_theme_recolor(s_footer);
   pin_label_no_theme_recolor(s_usb);
   pin_label_no_theme_recolor(s_battery);
-  pin_label_no_theme_recolor(s_ring);
 
   s_link_next_pulse_us = esp_timer_get_time();
   status_icon_apply(s_ble_icon, s_ble_icon_pulse);
@@ -579,6 +613,9 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   if (deui_ui_obj_machine_state != NULL) {
     lv_obj_move_foreground(deui_ui_obj_machine_state);
   }
+
+  lv_obj_clear_flag(root, LV_OBJ_FLAG_GESTURE_BUBBLE);
+  lv_obj_add_event_cb(root, root_gesture_theme_cb, LV_EVENT_GESTURE, NULL);
 
   deui_ui_screen_apply_searching();
 
@@ -704,6 +741,15 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   }
 
   /** One mode at a time: visibility is owned by `deui_ui_screen_*.c`. */
+#if DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED
+  /** Temporary: always brewing chrome when connected — idle module kept but not routed (see `deui_ui_priv.h`). */
+  if (!status->ble_connected) {
+    deui_ui_screen_apply_searching();
+  } else {
+    deui_ui_screen_apply_brewing();
+  }
+  const bool shot_layout = status->ble_connected;
+#else
   /** Brewing chrome + arcs: DE1 major Espresso (0x04) only — `deui_ui_screen_apply_brewing` must stay in sync. */
   const bool de1_brew =
       status->ble_connected && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
@@ -718,6 +764,8 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   }
 
   const bool shot_layout = de1_brew;
+#endif
+
   if (shot_layout != s_metrics_shot_layout) {
     s_metrics_shot_layout = shot_layout;
     deui_theme_palette_t theme;
@@ -740,21 +788,29 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   }
 
   /*
-   * Rings are full-panel siblings of the metrics card; ensure they stay behind the card whenever the
-   * card is shown so extraction numerals are not painted over. After Espresso, headline-only idle
-   * brings the metrics plate + title back without stale arc chrome on top.
+   * Brewing: keep rings above the metrics card so arc edges are fully visible (not clipped by card).
+   * Non-brewing: push them behind the card/headline chrome.
    */
-  if (s_flow_arc != NULL) {
-    lv_obj_move_background(s_flow_arc);
-  }
-  if (s_pressure_arc != NULL) {
-    lv_obj_move_background(s_pressure_arc);
+  if (shot_layout) {
+    if (s_pressure_arc != NULL) {
+      lv_obj_move_foreground(s_pressure_arc);
+    }
+    if (s_flow_arc != NULL) {
+      lv_obj_move_foreground(s_flow_arc);
+    }
+  } else {
+    if (s_flow_arc != NULL) {
+      lv_obj_move_background(s_flow_arc);
+    }
+    if (s_pressure_arc != NULL) {
+      lv_obj_move_background(s_pressure_arc);
+    }
   }
   const bool metrics_visible = status->ble_connected;
   if (metrics_visible && deui_ui_obj_metrics_card != NULL) {
     lv_obj_move_foreground(deui_ui_obj_metrics_card);
   }
-  if (!de1_brew && status->ble_connected && deui_ui_obj_machine_state != NULL) {
+  if (!shot_layout && status->ble_connected && deui_ui_obj_machine_state != NULL) {
     lv_obj_move_foreground(deui_ui_obj_machine_state);
   }
 
@@ -764,39 +820,12 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
 void deui_ui_indicate_ring_step(int delta) {
   /*
    * Rotary direction toggles DEUI app palette: forward → light, back → dark.
-   * Ring delta still updates the RING overlay counter.
    */
   if (esp_lv_adapter_lock(-1) != ESP_OK) {
     return;
   }
 
-  bool to_light = (delta > 0 && s_theme_mode == DEUI_THEME_MODE_DARK);
-  bool to_dark = (delta < 0 && s_theme_mode == DEUI_THEME_MODE_LIGHT);
-  if (to_light) {
-    s_theme_mode = DEUI_THEME_MODE_LIGHT;
-  } else if (to_dark) {
-    s_theme_mode = DEUI_THEME_MODE_DARK;
-  }
-  if (to_light || to_dark) {
-    deui_theme_palette_t theme;
-    deui_theme_palette_for_mode(s_theme_mode, &theme);
-    s_color_primary_text = theme.primary_text;
-    apply_theme_palette(&theme);
-    status_icon_apply(s_ble_icon, s_ble_icon_pulse);
-    status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
-    if (s_scale_icon_pulse) {
-      status_icon_apply(s_scale_icon, true);
-    } else {
-      status_icon_apply(s_scale_icon, false);
-    }
-  }
-
-  s_ring_count += delta;
-  if (s_ring != NULL) {
-    set_textf(s_ring, "RING %d", s_ring_count);
-    lv_obj_clear_flag(s_ring, LV_OBJ_FLAG_HIDDEN);
-  }
-  s_ring_until_us = esp_timer_get_time() + 300000;
+  deui_ui_theme_nudge_locked(delta);
 
   esp_lv_adapter_unlock();
 }
@@ -821,16 +850,5 @@ void deui_ui_tick(void) {
       }
       esp_lv_adapter_unlock();
     }
-  }
-
-  if (s_ring == NULL) {
-    return;
-  }
-  if (s_ring_until_us > 0 && now > s_ring_until_us) {
-    if (esp_lv_adapter_lock(-1) == ESP_OK) {
-      lv_obj_add_flag(s_ring, LV_OBJ_FLAG_HIDDEN);
-      esp_lv_adapter_unlock();
-    }
-    s_ring_until_us = 0;
   }
 }

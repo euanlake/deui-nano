@@ -1,6 +1,6 @@
 /**
- * DE1 major **Espresso** (0x04) only — do not call except from the `de1_brew` branch in `deui_ui_update_status`.
- * Hides headline, shows metrics capsule + arcs (metrics via `deui_ui_update_metrics`).
+ * Brewing presentation: hide headline, show metrics capsule (+ arcs when `shot_layout` is true).
+ * Routed for every connected DE1 while `DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED`; otherwise Espresso (0x04) only.
  */
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"

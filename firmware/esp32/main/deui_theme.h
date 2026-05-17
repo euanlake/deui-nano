@@ -42,7 +42,7 @@ static inline void deui_theme_palette_for_mode(deui_theme_mode_t mode, deui_them
         .primary_text = 0x1e1e1e,
         .subtle_text = 0x757575,
         .card_border = 0xe1e1e1,
-        .card_border_width = 1,
+        .card_border_width = 0,
         .flow_arc = 0x002e59,
         .pressure_arc = 0x00b41c,
         .accent_ring = 0xff9900,

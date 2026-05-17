@@ -1,6 +1,9 @@
 /**
  * Connected to DE1 but not major **Espresso** (0x04): headline + metrics grid (transparent plate).
  * Mutually exclusive with brewing and searching screens.
+ *
+ * Not routed from `deui_ui_update_status` while `DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED` is 1 in
+ * `deui_ui_priv.h` — kept for when Espresso gating is restored.
  */
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"

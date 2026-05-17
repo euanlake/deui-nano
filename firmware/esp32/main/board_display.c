@@ -1,5 +1,6 @@
 #include "board_display.h"
 
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/spi_master.h"
 #include "freertos/FreeRTOS.h"
@@ -24,27 +25,68 @@ static esp_lcd_panel_handle_t s_panel = NULL;
 static esp_lcd_touch_handle_t s_touch = NULL;
 static lv_disp_t *s_display = NULL;
 
-/** Wake CST816 like Waveshare reference: write reg 0x00 = 0x00 before reads (may NAK until awake). */
+/** I2C xfer timeout (ms) — short timeouts surface as ESP_ERR_INVALID_STATE if the FSM does not reach DONE. */
+static const int k_touch_i2c_timeout_ms = 500;
+
+/** Same spirit as Waveshare `08_LVGL_Test` i2c_bsp — wait until master FSM idle before touch traffic. */
+static const int k_touch_i2c_idle_wait_ms = 1000;
+
+static void lm_touch_bus_idle_wait(i2c_master_bus_handle_t bus) {
+  if (bus == NULL) {
+    return;
+  }
+  (void)i2c_master_bus_wait_all_done(bus, k_touch_i2c_idle_wait_ms);
+}
+
+/** Hardware reset pulse — required on Knob 1.8 (RST=GPIO10 per Waveshare demo); I2C stays dead until released. */
+static void lm_cst816_hw_reset_pulse(void) {
+#if LM_CTRL_TOUCH_RST == GPIO_NUM_NC
+  return;
+#else
+  gpio_config_t rst_cfg = {
+    .pin_bit_mask = (1ULL << LM_CTRL_TOUCH_RST),
+    .mode = GPIO_MODE_OUTPUT,
+    .pull_up_en = GPIO_PULLUP_DISABLE,
+    .pull_down_en = GPIO_PULLDOWN_DISABLE,
+    .intr_type = GPIO_INTR_DISABLE,
+  };
+  if (gpio_config(&rst_cfg) != ESP_OK) {
+    return;
+  }
+  gpio_set_level(LM_CTRL_TOUCH_RST, 0);
+  vTaskDelay(pdMS_TO_TICKS(10));
+  gpio_set_level(LM_CTRL_TOUCH_RST, 1);
+  vTaskDelay(pdMS_TO_TICKS(50));
+#endif
+}
+
+/** Wake CST816 like Waveshare Arduino `Touch_Init`: write reg 0x00 = 0x00 (normal mode). */
 static void lm_cst816_wake_on_bus(i2c_master_bus_handle_t bus) {
+  if (bus == NULL) {
+    return;
+  }
+  lm_touch_bus_idle_wait(bus);
   i2c_master_dev_handle_t dev = NULL;
   i2c_device_config_t cfg = {
     .dev_addr_length = I2C_ADDR_BIT_LEN_7,
     .device_address = ESP_LCD_TOUCH_IO_I2C_CST816S_ADDRESS,
-    /*
-     * Use 100 kHz — matches ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG default and Arduino
-     * demos (Knob RGB / Waveshare). 300 kHz marginal on some CST816+FPC setups.
-     */
+    /* 100 kHz for manual wake — tolerant if rails are still settling (probe already uses 100 kHz). */
     .scl_speed_hz = 100000,
   };
   if (i2c_master_bus_add_device(bus, &cfg, &dev) != ESP_OK) {
     return;
   }
   uint8_t wake[] = {0x00, 0x00};
-  esp_err_t err = i2c_master_transmit(dev, wake, sizeof(wake), 100);
+  esp_err_t err = i2c_master_transmit(dev, wake, sizeof(wake), k_touch_i2c_timeout_ms);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "CST816 wake write failed: %s", esp_err_to_name(err));
+    (void)i2c_master_bus_reset(bus);
   }
-  i2c_master_bus_rm_device(dev);
+  esp_err_t rm = i2c_master_bus_rm_device(dev);
+  if (rm != ESP_OK) {
+    ESP_LOGW(TAG, "CST816 wake device detach: %s — resetting touch I2C bus", esp_err_to_name(rm));
+    (void)i2c_master_bus_reset(bus);
+  }
   vTaskDelay(pdMS_TO_TICKS(10));
 }
 
@@ -53,7 +95,25 @@ static bool lm_cst816_probe_ok(i2c_master_bus_handle_t bus) {
   if (bus == NULL) {
     return false;
   }
-  return i2c_master_probe(bus, k_touch_i2c_addr, 100) == ESP_OK;
+  lm_touch_bus_idle_wait(bus);
+  return i2c_master_probe(bus, k_touch_i2c_addr, k_touch_i2c_timeout_ms) == ESP_OK;
+}
+
+/** One-shot bring-up diagnostics: list ACKing 7-bit addresses on shared bus (touch + haptic). */
+static void lm_log_i2c_devices(i2c_master_bus_handle_t bus) {
+  if (bus == NULL) {
+    return;
+  }
+  bool any = false;
+  for (uint8_t addr = 0x03; addr <= 0x77; ++addr) {
+    if (i2c_master_probe(bus, addr, 20) == ESP_OK) {
+      ESP_LOGI(TAG, "I2C device ACK at 0x%02X", addr);
+      any = true;
+    }
+  }
+  if (!any) {
+    ESP_LOGW(TAG, "I2C scan: no device ACKs detected");
+  }
 }
 
 /**
@@ -73,7 +133,8 @@ static bool lm_cst816_bus_has_device(i2c_master_bus_handle_t bus) {
     return true;
   }
   ESP_LOGW(TAG,
-           "No CST816 at 0x%02X on SDA=%d SCL=%d — touch disabled (check FPC / LM_CTRL_TOUCH_* pins)",
+           "No CST816 at 0x%02X on SDA=%d SCL=%d — touch disabled (FPC, USB-C MCU select=S3, schematic TP_RST/TP_INT "
+           "→ LM_CTRL_TOUCH_*)",
            k_touch_i2c_addr, (int)LM_CTRL_TOUCH_SDA, (int)LM_CTRL_TOUCH_SCL);
   return false;
 }
@@ -265,6 +326,26 @@ static const st77916_lcd_init_cmd_t s_init_cmds[] = {
   {0x29, (uint8_t[]){0x00}, 1, 0},
 };
 
+/** Shared by CST816 + DRV2605 — created after LCD `disp_on` so touch rail is up (Waveshare LVGL demo order). */
+static esp_err_t lm_touch_i2c_bus_ensure(void) {
+  if (s_i2c_bus != NULL) {
+    return ESP_OK;
+  }
+  i2c_master_bus_config_t i2c_config = {
+    .i2c_port = LM_CTRL_TOUCH_HOST,
+    .sda_io_num = LM_CTRL_TOUCH_SDA,
+    .scl_io_num = LM_CTRL_TOUCH_SCL,
+    .clk_source = I2C_CLK_SRC_DEFAULT,
+    .glitch_ignore_cnt = 7,
+    .intr_priority = 0,
+    .trans_queue_depth = 0,
+    .flags = {
+      .enable_internal_pullup = 1,
+    },
+  };
+  return i2c_new_master_bus(&i2c_config, &s_i2c_bus);
+}
+
 esp_err_t lm_ctrl_display_init(lv_disp_t **out_display) {
   ESP_LOGI(TAG, "Initialize LCD SPI bus");
   spi_bus_config_t buscfg = ST77916_PANEL_BUS_QSPI_CONFIG(
@@ -284,6 +365,12 @@ esp_err_t lm_ctrl_display_init(lv_disp_t **out_display) {
     TAG,
     "Panel IO init failed"
   );
+
+  /*
+   * Waveshare ESP-IDF `08_LVGL_Test/main.c`: `esp_lcd_panel_init` completes, then `i2c_master_Init()`
+   * and touch wake. The CST816 rail appears tied to display power — waking/probing before `disp_on`
+   * yields ESP_ERR_INVALID_STATE / no ACK at 0x15.
+   */
 
   st77916_vendor_config_t vendor_config = {
     .init_cmds = s_init_cmds,
@@ -305,26 +392,14 @@ esp_err_t lm_ctrl_display_init(lv_disp_t **out_display) {
   ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "Panel init sequence failed");
   ESP_RETURN_ON_ERROR(esp_lcd_panel_mirror(s_panel, false, false), TAG, "Panel mirror failed");
   ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(s_panel, true), TAG, "Panel enable failed");
-  /*
-   * Let the TFT + touch digitizer rails settle before touching the CST816 bus.
-   * Volos/I2C examples often initialise touch shortly after LVGL/display; rushing
-   * this can yield NAK / ESP_ERR_INVALID_STATE on the first I2C transaction.
-   */
+  /* Let TFT + shared touch supply settle, then bring up I2C (matches Waveshare LVGL demo ordering). */
   vTaskDelay(pdMS_TO_TICKS(120));
 
-  i2c_master_bus_config_t i2c_config = {
-    .i2c_port = LM_CTRL_TOUCH_HOST,
-    .sda_io_num = LM_CTRL_TOUCH_SDA,
-    .scl_io_num = LM_CTRL_TOUCH_SCL,
-    .clk_source = I2C_CLK_SRC_DEFAULT,
-    .glitch_ignore_cnt = 7,
-    .intr_priority = 0,
-    .trans_queue_depth = 0,
-    .flags = {
-      .enable_internal_pullup = 1,
-    },
-  };
-  ESP_RETURN_ON_ERROR(i2c_new_master_bus(&i2c_config, &s_i2c_bus), TAG, "I2C bus init failed");
+  ESP_RETURN_ON_ERROR(lm_touch_i2c_bus_ensure(), TAG, "Touch I2C bus init failed");
+  lm_cst816_hw_reset_pulse();
+  lm_cst816_wake_on_bus(s_i2c_bus);
+  vTaskDelay(pdMS_TO_TICKS(30));
+  lm_log_i2c_devices(s_i2c_bus);
 
   esp_lcd_touch_config_t touch_config = {
     .x_max = LM_CTRL_LCD_H_RES,
@@ -344,7 +419,7 @@ esp_err_t lm_ctrl_display_init(lv_disp_t **out_display) {
   esp_lcd_panel_io_handle_t touch_io = NULL;
   if (lm_cst816_bus_has_device(s_i2c_bus)) {
     esp_lcd_panel_io_i2c_config_t touch_io_config = ESP_LCD_TOUCH_IO_I2C_CST816S_CONFIG();
-    /* Keep default 100 kHz from CST816 panel IO helper (avoid overriding to 300 kHz). */
+    touch_io_config.scl_speed_hz = 300000; /* Waveshare Knob 1.8 `i2c_bsp.c` */
     esp_err_t io_err = esp_lcd_new_panel_io_i2c(s_i2c_bus, &touch_io_config, &touch_io);
     if (io_err != ESP_OK) {
       ESP_LOGW(TAG, "Touch panel IO init failed: %s — continuing without touch", esp_err_to_name(io_err));

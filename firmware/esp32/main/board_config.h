@@ -33,10 +33,14 @@
 #define LM_CTRL_LCD_TE GPIO_NUM_NC
 #define LM_CTRL_LCD_BL GPIO_NUM_47
 
-/** CST816S touch — legacy I2C: SDA=11, SCL=12 (address 0x15 in sketch). */
+/** CST816S touch — Waveshare Knob 1.8 demo uses SDA=11, SCL=12, addr 0x15. */
 #define LM_CTRL_TOUCH_HOST I2C_NUM_0
 #define LM_CTRL_TOUCH_SDA GPIO_NUM_11
 #define LM_CTRL_TOUCH_SCL GPIO_NUM_12
+/*
+ * Keep INT/RST unbound: Waveshare ESP-IDF `08_LVGL_Test` talks to touch over I2C only and
+ * does not toggle these pins. Some board revisions may route them differently.
+ */
 #define LM_CTRL_TOUCH_INT GPIO_NUM_NC
 #define LM_CTRL_TOUCH_RST GPIO_NUM_NC
 
