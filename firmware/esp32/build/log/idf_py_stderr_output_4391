@@ -1,0 +1,60 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 /Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32
+CMake Error at /Users/euanlake/esp/esp-idf/tools/cmake/build.cmake:633 (message):
+  Traceback (most recent call last):
+
+    File "<frozen runpy>", line 198, in _run_module_as_main
+    File "<frozen runpy>", line 88, in _run_code
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_manager/prepare_components/__main__.py", line 6, in <module>
+      main()
+      ~~~~^^
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_manager/prepare_components/prepare.py", line 337, in main
+      args.func(args)
+      ~~~~~~~~~^^^^^^
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_manager/prepare_components/prepare.py", line 152, in prepare_dep_dirs
+      ).prepare_dep_dirs(
+        ~~~~~~~~~~~~~~~~^
+          managed_components_list_file=args.managed_components_list_file,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          component_list_file=_component_list_file(build_dir),
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          local_components_list_file=local_components_list_file,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      )
+      ^
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_manager/core.py", line 111, in wrapper
+      return func(self, *args, **kwargs)
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_manager/core.py", line 748, in prepare_dep_dirs
+      downloaded_components = download_project_dependencies(
+          project_requirements,
+          str(self.lock_path),
+          str(self.managed_components_path),
+      )
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_manager/dependencies.py", line 537, in download_project_dependencies
+      download_path = fetcher.download()
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_tools/sources/fetcher.py", line 29, in download
+      download_path = self.source.download(self.component, self.component_path.as_posix())
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_tools/sources/web_service.py", line 309, in download
+      copy_directory(component_cache_path, download_path)
+      ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/lib/python3.13/site-packages/idf_component_tools/file_tools.py", line 176, in copy_directory
+      rmtree(destination_directory)
+      ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+    File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/shutil.py", line 763, in rmtree
+      _rmtree_safe_fd(stack, onexc)
+      ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+    File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/shutil.py", line 707, in _rmtree_safe_fd
+      onexc(func, path, err)
+      ~~~~~^^^^^^^^^^^^^^^^^
+    File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/shutil.py", line 658, in _rmtree_safe_fd
+      os.rmdir(name, dir_fd=dirfd)
+      ~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+
+  OSError: [Errno 66] Directory not empty: '/Users/euanlake/Library/Mobile
+  Documents/com~apple~CloudDocs/Documents/Local
+  Development/deui-nano-testing/firmware/esp32/managed_components/espressif__libpng/libpng/ci/targets'
+
+Call Stack (most recent call first):
+  /Users/euanlake/esp/esp-idf/tools/cmake/project.cmake:752 (idf_build_process)
+  CMakeLists.txt:3 (project)
+
+

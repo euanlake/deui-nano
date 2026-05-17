@@ -1,0 +1,38 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/Users/euanlake/.espressif/python_env/idf5.5_py3.13_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 /Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32
+-- IDF_TARGET is not set, guessed 'esp32s3' from sdkconfig '/Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32/sdkconfig'
+-- Found Git: /opt/homebrew/bin/git (found version "2.49.0")
+-- Component directory /Users/euanlake/esp/esp-idf/components/esp_blockdev does not contain a CMakeLists.txt file. No component will be added
+-- Minimal build - OFF
+-- The C compiler identification is GNU 14.2.0
+-- The CXX compiler identification is GNU 14.2.0
+-- The ASM compiler identification is GNU
+-- Found assembler: /Users/euanlake/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /Users/euanlake/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-gcc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /Users/euanlake/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20260121/xtensa-esp-elf/bin/xtensa-esp32s3-elf-g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- git rev-parse returned 'fatal: not a git repository (or any of the parent directories): .git'
+-- Could not use 'git describe' to determine PROJECT_VER.
+-- Building ESP-IDF components for target esp32s3
+NOTICE: Processing 18 dependencies:
+NOTICE: [1/18] espressif/button (4.1.6)
+NOTICE: [2/18] espressif/cmake_utilities (0.5.3)
+NOTICE: [3/18] espressif/esp_lcd_st77916 (2.0.2)
+NOTICE: [4/18] espressif/esp_lcd_touch (1.2.1)
+NOTICE: [5/18] espressif/esp_lcd_touch_cst816s (1.1.1~1)
+NOTICE: [6/18] espressif/esp_lv_decoder (0.4.0)
+NOTICE: [7/18] espressif/esp_lv_fs (1.0.1)
+NOTICE: [8/18] espressif/esp_lvgl_adapter (0.3.2)
+NOTICE: [9/18] espressif/esp_mmap_assets (2.0.0)
+NOTICE: [10/18] espressif/esp_new_jpeg (1.0.1)
+NOTICE: [11/18] espressif/freetype (2.14.2)
+NOTICE: [12/18] espressif/knob (1.0.2)
+NOTICE: [13/18] espressif/led_strip (3.0.3)
+NOTICE: [14/18] espressif/libpng (1.6.58)
+-- Configuring incomplete, errors occurred!

@@ -1,0 +1,36 @@
+idf_component_register(
+  SRCS
+    "app_main.c"
+    "board_backlight.c"
+    "board_display.c"
+    "board_haptic.c"
+    "board_leds.c"
+    "board_power.c"
+    "deui_ble_client.c"
+    "deui_ui.c"
+    "deui_ui_screen_searching.c"
+    "deui_ui_screen_idle.c"
+    "deui_ui_screen_brewing.c"
+    "../../../fonts/LabGrotesque_Regular_16.c"
+    "../../../fonts/LabGrotesque_Bold_48.c"
+    "input.c"
+    "wifi_setup.c"
+  INCLUDE_DIRS
+    "."
+  REQUIRES
+    bt
+    deui_nimble_cent
+    espressif__esp_lvgl_adapter
+    lvgl__lvgl
+    mdns
+    led_strip
+    esp_adc
+    esp_driver_usb_serial_jtag
+    esp_driver_ledc
+    esp_driver_rmt
+    esp_event
+    esp_http_server
+    esp_netif
+    esp_wifi
+    nvs_flash
+)
