@@ -17,6 +17,7 @@
 #include "deui_ble_client.h"
 #include "deui_power_policy.h"
 #include "deui_scale_client.h"
+#include "deui_shot_metrics.h"
 #include "deui_ui.h"
 #include "deui_weight_stop.h"
 #include "input.h"
@@ -86,6 +87,7 @@ void app_main(void) {
   deui_power_policy_t power_policy = {0};
   deui_power_policy_state_t power_state = DEUI_POWER_POLICY_AWAKE;
   uint8_t previous_major_state = 0xff;
+  uint8_t previous_minor_state = 0xff;
   bool shot_timer_armed = false;
   int64_t shot_timer_start_us = 0;
   uint32_t previous_power_version = 0;
@@ -190,14 +192,27 @@ void app_main(void) {
 
     const bool entered_espresso = (previous_major_state != DE1_MAJOR_STATE_ESPRESSO) &&
                                   (ble_status.de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
-    if (entered_espresso && scale_status.connected) {
-      esp_err_t tare_rc = deui_scale_send_tare();
-      if (tare_rc != ESP_OK) {
-        ESP_LOGW(TAG, "Auto-tare on Espresso entry failed: %s", esp_err_to_name(tare_rc));
-      } else {
-        ESP_LOGI(TAG, "Auto-tare triggered on Espresso entry");
+    const bool exited_espresso = (previous_major_state == DE1_MAJOR_STATE_ESPRESSO) &&
+                                 (ble_status.de1_major_state != DE1_MAJOR_STATE_ESPRESSO);
+    if (exited_espresso && shot_timer_armed && shot_timer_start_us > 0) {
+      const float final_shot_s =
+          (float)(esp_timer_get_time() - shot_timer_start_us) / 1000000.0f;
+      deui_shot_metrics_on_espresso_exit(final_shot_s >= 0.f ? final_shot_s : 0.f);
+    }
+    if (entered_espresso) {
+      deui_shot_metrics_on_espresso_enter();
+      if (scale_status.connected) {
+        esp_err_t tare_rc = deui_scale_send_tare();
+        if (tare_rc != ESP_OK) {
+          ESP_LOGW(TAG, "Auto-tare on Espresso entry failed: %s", esp_err_to_name(tare_rc));
+        } else {
+          ESP_LOGI(TAG, "Auto-tare triggered on Espresso entry");
+        }
       }
     }
+    const uint8_t prev_major_for_metrics = previous_major_state;
+    const uint8_t prev_minor_for_metrics = previous_minor_state;
+
     previous_major_state = ble_status.de1_major_state;
 
     ui_status.ble_connected = ble_status.connected;
@@ -241,14 +256,18 @@ void app_main(void) {
         t_s = 0.f;
       }
     }
-    bool shot_metrics = brew_ui;
-    if (!shot_metrics) {
-      w_g = 0.f;
-      t_s = 0.f;
-      flow = 0.f;
-      bar = 0.f;
-    }
-    deui_ui_update_metrics(w_g, t_s, bar, flow, shot_metrics);
+    deui_shot_metrics_update(brew_ui, ble_status.de1_minor_state, prev_minor_for_metrics,
+                             prev_major_for_metrics, w_g, t_s, bar, flow);
+
+    deui_shot_metrics_values_t metrics = {0};
+    bool show_metrics = false;
+    bool metrics_live = false;
+    deui_shot_metrics_resolve(brew_ui, ble_status.de1_minor_state, w_g, t_s, bar, flow, &metrics,
+                              &show_metrics, &metrics_live);
+    deui_ui_update_metrics(metrics.weight_g, metrics.shot_time_s, metrics.pressure_bar,
+                           metrics.flow_ml_s, show_metrics, metrics_live);
+
+    previous_minor_state = ble_status.de1_minor_state;
 
     if (power_state == DEUI_POWER_POLICY_BAT_SLEEP) {
       (void)lm_ctrl_leds_set_status(LM_CTRL_LED_STATUS_IDLE);

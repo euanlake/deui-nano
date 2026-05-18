@@ -61,6 +61,8 @@ static deui_theme_mode_t s_theme_mode = DEUI_THEME_MODE_DARK;
 
 /** True: solid metrics “capsule” while pulling a shot; false: transparent plate under idle/search + zeroed grid. */
 static bool s_metrics_shot_layout = false;
+/** True: live extraction values (strong text); false: session peaks / saved post-shot (subtle text). */
+static bool s_metrics_live = false;
 
 
 static const lv_font_t *font_regular_16(void) {
@@ -116,6 +118,37 @@ static void style_shot_arcs_from_theme(const deui_theme_palette_t *theme) {
     lv_obj_set_style_arc_opa(s_pressure_arc, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_pressure_arc, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(s_pressure_arc, LV_OPA_TRANSP, LV_PART_KNOB);
+  }
+}
+
+static void apply_metric_labels(bool live) {
+  if (s_weight_label != NULL) {
+    deui_ui_label_set_static_if_changed(s_weight_label, live ? "WEIGHT (G)" : "MAX WEIGHT (G)");
+  }
+  if (s_time_label != NULL) {
+    deui_ui_label_set_static_if_changed(s_time_label, live ? "TIME (S)" : "MAX TIME (S)");
+  }
+  if (s_pressure_label != NULL) {
+    deui_ui_label_set_static_if_changed(s_pressure_label, live ? "PRESS (BAR)" : "MAX PRESS (BAR)");
+  }
+  if (s_flow_label != NULL) {
+    deui_ui_label_set_static_if_changed(s_flow_label, live ? "FLOW (ML/S)" : "MAX FLOW (ML/S)");
+  }
+}
+
+static void apply_metric_value_colors(bool live) {
+  const uint32_t value_color = live ? s_color_primary_text : s_color_subtle_fg;
+  if (s_weight_value != NULL) {
+    lv_obj_set_style_text_color(s_weight_value, lv_color_hex(value_color), LV_PART_MAIN);
+  }
+  if (s_time_value != NULL) {
+    lv_obj_set_style_text_color(s_time_value, lv_color_hex(value_color), LV_PART_MAIN);
+  }
+  if (s_pressure_value != NULL) {
+    lv_obj_set_style_text_color(s_pressure_value, lv_color_hex(value_color), LV_PART_MAIN);
+  }
+  if (s_flow_value != NULL) {
+    lv_obj_set_style_text_color(s_flow_value, lv_color_hex(value_color), LV_PART_MAIN);
   }
 }
 
@@ -211,27 +244,16 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
   if (s_weight_label != NULL) {
     lv_obj_set_style_text_color(s_weight_label, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
   }
-  if (s_weight_value != NULL) {
-    lv_obj_set_style_text_color(s_weight_value, lv_color_hex(theme->primary_text), LV_PART_MAIN);
-  }
   if (s_time_label != NULL) {
     lv_obj_set_style_text_color(s_time_label, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
-  }
-  if (s_time_value != NULL) {
-    lv_obj_set_style_text_color(s_time_value, lv_color_hex(theme->primary_text), LV_PART_MAIN);
   }
   if (s_pressure_label != NULL) {
     lv_obj_set_style_text_color(s_pressure_label, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
   }
-  if (s_pressure_value != NULL) {
-    lv_obj_set_style_text_color(s_pressure_value, lv_color_hex(theme->primary_text), LV_PART_MAIN);
-  }
   if (s_flow_label != NULL) {
     lv_obj_set_style_text_color(s_flow_label, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
   }
-  if (s_flow_value != NULL) {
-    lv_obj_set_style_text_color(s_flow_value, lv_color_hex(theme->primary_text), LV_PART_MAIN);
-  }
+  apply_metric_value_colors(s_metrics_live);
   if (deui_ui_obj_machine_state != NULL) {
     lv_obj_set_style_text_color(deui_ui_obj_machine_state, lv_color_hex(theme->primary_text), LV_PART_MAIN);
   }
@@ -637,7 +659,7 @@ esp_err_t deui_ui_init(lv_disp_t *display) {
 }
 
 void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_bar, float flow_ml_s,
-                            bool show_shot_metrics) {
+                            bool show_shot_metrics, bool metrics_live) {
   if (esp_lv_adapter_lock(-1) != ESP_OK) {
     return;
   }
@@ -647,6 +669,13 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_ba
     shot_time_s = 0.f;
     pressure_bar = 0.f;
     flow_ml_s = 0.f;
+    metrics_live = false;
+  }
+
+  if (metrics_live != s_metrics_live) {
+    s_metrics_live = metrics_live;
+    apply_metric_labels(metrics_live);
+    apply_metric_value_colors(metrics_live);
   }
 
   /** Numeric values only in labels; captions carry units (ShotSample: group pressure, group flow). */
@@ -667,8 +696,9 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_ba
     lv_obj_invalidate(deui_ui_obj_metrics_card);
   }
 
+  const bool show_arcs = show_shot_metrics && metrics_live;
   if (s_pressure_arc != NULL) {
-    if (!show_shot_metrics) {
+    if (!show_arcs) {
       lv_arc_set_value(s_pressure_arc, 0);
       lv_obj_add_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
     } else {
@@ -678,7 +708,7 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_ba
     }
   }
   if (s_flow_arc != NULL) {
-    if (!show_shot_metrics) {
+    if (!show_arcs) {
       lv_arc_set_value(s_flow_arc, 0);
       lv_obj_add_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
     } else {

@@ -10,6 +10,7 @@ idf_component_register(
     "deui_power_policy.c"
     "deui_scale_client.c"
     "deui_weight_stop.c"
+    "deui_shot_metrics.c"
     "deui_ble_hci_compat.c"
     "deui_ui.c"
     "deui_ui_screen_searching.c"
