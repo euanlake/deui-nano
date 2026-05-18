@@ -42,14 +42,16 @@ If partitions change (`partitions.csv`), run `full` again.
 
 ## Board pins
 
-QSPI display, backlight, and CST816 I2C lines in `main/board_config.h` follow Waveshare reference wiring (PCLK 13, CS 14, data 15–18, RST 21, backlight 47, touch SDA 11 / SCL 12). Touch reset/interrupt pins default to `GPIO_NUM_NC`—set them in `board_config.h` if `esp_lcd_touch_cst816s` init fails on your PCB.
+QSPI display, backlight, and CST816 I2C lines in `main/board/board_config.h` follow Waveshare reference wiring (PCLK 13, CS 14, data 15–18, RST 21, backlight 47, touch SDA 11 / SCL 12). Touch reset/interrupt pins default to `GPIO_NUM_NC`—set them in `board/board_config.h` if `esp_lcd_touch_cst816s` init fails on your PCB.
 
 ## Layout
 
-- `main/board_*` board drivers (display/touch/backlight/power/haptic/leds)
-- `main/input.*` physical ring polling
-- `main/wifi_setup.*` minimal DEUI setup AP + captive portal
-- `main/deui_ble_client.*` DE1 BLE integration entrypoint
-- `main/deui_ui.*` LVGL UI and status bar
+- `main/board/` board drivers and pin mapping (`board_config.h`)
+- `main/input/` physical ring polling
+- `main/net/` minimal DEUI setup AP + captive portal
+- `main/ble/` DE1 BLE integration entrypoint and scale/weight-stop support
+- `main/brew/` shot metrics computation
+- `main/power/` power policy
+- `main/ui/` LVGL UI core, plus per-mode screens under `main/ui/screens/`
 
 See `docs/controller/FLASHING_CONTROLLER.md` and `docs/controller/SETUP_GUIDE.md` for operator flow.

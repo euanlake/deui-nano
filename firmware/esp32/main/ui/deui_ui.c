@@ -1,6 +1,5 @@
 #include "deui_ui.h"
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,6 +12,7 @@
 #include "deui_ble_client.h"
 #include "deui_shot_metrics.h"
 #include "deui_theme.h"
+#include "deui_ui_internal.h"
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"
 #include "esp_lv_adapter.h"
@@ -169,62 +169,6 @@ static void sync_metrics_card_chrome(const deui_theme_palette_t *theme) {
   }
 }
 
-static int wrap_arc_revolution(int value) {
-  int wrapped = value % k_arc_revolution;
-  if (wrapped < 0) {
-    wrapped += k_arc_revolution;
-  }
-  return wrapped;
-}
-
-static uint16_t value_to_clock_angle(int value_cent) {
-  const int v = wrap_arc_revolution(value_cent);
-  int angle = 270 + (v * 360) / k_arc_revolution;
-  angle %= 360;
-  if (angle < 0) {
-    angle += 360;
-  }
-  return (uint16_t)angle;
-}
-
-static void set_arc_marker(lv_obj_t *arc, int value_cent, int max_cent) {
-  if (arc == NULL || max_cent <= 0) {
-    return;
-  }
-
-  int clamped = value_cent;
-  if (clamped < 0) {
-    clamped = 0;
-  }
-  if (clamped > max_cent) {
-    clamped = max_cent;
-  }
-
-  const int scaled = (clamped * k_arc_revolution) / max_cent;
-  const int start_v = wrap_arc_revolution(scaled - k_arc_marker_half_width);
-  const int end_v = wrap_arc_revolution(scaled + k_arc_marker_half_width);
-  const uint16_t start_ang = value_to_clock_angle(start_v);
-  const uint16_t end_ang = value_to_clock_angle(end_v);
-  lv_arc_set_bg_angles(arc, start_ang, (end_ang >= start_ang) ? end_ang : (uint16_t)(end_ang + 360));
-  if (lv_arc_get_value(arc) != k_arc_marker_fill) {
-    lv_arc_set_value(arc, k_arc_marker_fill);
-  }
-}
-
-/** LVGL default theme applies text color filters (pink / green tints); neutralize so `deui_theme` hex wins. */
-static void pin_label_no_theme_recolor(lv_obj_t *obj) {
-  if (obj == NULL) {
-    return;
-  }
-  lv_obj_set_style_color_filter_opa(obj, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_style_text_opa(obj, LV_OPA_COVER, LV_PART_MAIN);
-}
-
-/** Drop LVGL default-theme props (stacked arc greys + theme primary pink, card fills on bare objs). */
-static void strip_default_theme(lv_obj_t *obj) {
-  lv_obj_remove_style_all(obj);
-}
-
 static void apply_theme_palette(const deui_theme_palette_t *theme) {
   lv_obj_t *root = lv_scr_act();
   lv_obj_set_style_bg_color(root, lv_color_hex(theme->screen_bg), LV_PART_MAIN);
@@ -281,28 +225,28 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
   }
   sync_metrics_card_chrome(theme);
 
-  pin_label_no_theme_recolor(s_weight_label);
-  pin_label_no_theme_recolor(s_weight_value);
-  pin_label_no_theme_recolor(s_time_label);
-  pin_label_no_theme_recolor(s_time_value);
-  pin_label_no_theme_recolor(s_pressure_label);
-  pin_label_no_theme_recolor(s_pressure_value);
-  pin_label_no_theme_recolor(s_flow_label);
-  pin_label_no_theme_recolor(s_flow_value);
-  pin_label_no_theme_recolor(deui_ui_obj_machine_state);
-  pin_label_no_theme_recolor(s_ble_icon);
-  pin_label_no_theme_recolor(s_wifi_icon);
-  pin_label_no_theme_recolor(s_scale_icon);
-  pin_label_no_theme_recolor(s_footer);
-  pin_label_no_theme_recolor(s_usb);
-  pin_label_no_theme_recolor(s_battery);
+  deui_ui_pin_label_no_theme_recolor(s_weight_label);
+  deui_ui_pin_label_no_theme_recolor(s_weight_value);
+  deui_ui_pin_label_no_theme_recolor(s_time_label);
+  deui_ui_pin_label_no_theme_recolor(s_time_value);
+  deui_ui_pin_label_no_theme_recolor(s_pressure_label);
+  deui_ui_pin_label_no_theme_recolor(s_pressure_value);
+  deui_ui_pin_label_no_theme_recolor(s_flow_label);
+  deui_ui_pin_label_no_theme_recolor(s_flow_value);
+  deui_ui_pin_label_no_theme_recolor(deui_ui_obj_machine_state);
+  deui_ui_pin_label_no_theme_recolor(s_ble_icon);
+  deui_ui_pin_label_no_theme_recolor(s_wifi_icon);
+  deui_ui_pin_label_no_theme_recolor(s_scale_icon);
+  deui_ui_pin_label_no_theme_recolor(s_footer);
+  deui_ui_pin_label_no_theme_recolor(s_usb);
+  deui_ui_pin_label_no_theme_recolor(s_battery);
 }
 
 static void create_shot_metric_cell(lv_obj_t *card, lv_obj_t **out_col, lv_obj_t **out_lbl, lv_obj_t **out_val,
                                     const char *caption, lv_coord_t cell_w, lv_coord_t cell_h, lv_align_t align,
                                     const deui_theme_palette_t *theme) {
   *out_col = lv_obj_create(card);
-  strip_default_theme(*out_col);
+  deui_ui_strip_default_theme(*out_col);
   lv_obj_set_size(*out_col, cell_w, cell_h);
   lv_obj_align(*out_col, align, 0, 0);
   lv_obj_add_flag(*out_col, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
@@ -311,7 +255,7 @@ static void create_shot_metric_cell(lv_obj_t *card, lv_obj_t **out_col, lv_obj_t
   lv_obj_set_style_pad_all(*out_col, 0, LV_PART_MAIN);
 
   *out_lbl = lv_label_create(*out_col);
-  strip_default_theme(*out_lbl);
+  deui_ui_strip_default_theme(*out_lbl);
   lv_obj_add_flag(*out_lbl, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_set_style_bg_opa(*out_lbl, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_label_set_text(*out_lbl, caption);
@@ -324,7 +268,7 @@ static void create_shot_metric_cell(lv_obj_t *card, lv_obj_t **out_col, lv_obj_t
   lv_obj_align(*out_lbl, LV_ALIGN_TOP_MID, 0, 0);
 
   *out_val = lv_label_create(*out_col);
-  strip_default_theme(*out_val);
+  deui_ui_strip_default_theme(*out_val);
   lv_obj_add_flag(*out_val, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_set_style_bg_opa(*out_val, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_label_set_text(*out_val, "0");
@@ -335,26 +279,11 @@ static void create_shot_metric_cell(lv_obj_t *card, lv_obj_t **out_col, lv_obj_t
   lv_obj_set_style_text_align(*out_val, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
   /** Sit value directly under caption — avoids large TOP/BOTTOM gap inside the cell. */
   lv_obj_align_to(*out_val, *out_lbl, LV_ALIGN_OUT_BOTTOM_MID, 0, 0);
-  pin_label_no_theme_recolor(*out_lbl);
-  pin_label_no_theme_recolor(*out_val);
+  deui_ui_pin_label_no_theme_recolor(*out_lbl);
+  deui_ui_pin_label_no_theme_recolor(*out_val);
 
   /** `deui_ui_init` runs before the LVGL tick loop; give IDLE (and the task WDT) time on each cell. */
   vTaskDelay(1);
-}
-
-static void set_textf(lv_obj_t *label, const char *fmt, ...) {
-  if (label == NULL || fmt == NULL) {
-    return;
-  }
-  char buf[64];
-  va_list args;
-  va_start(args, fmt);
-  vsnprintf(buf, sizeof(buf), fmt, args);
-  va_end(args);
-  if (strcmp(lv_label_get_text(label), buf) == 0) {
-    return;
-  }
-  lv_label_set_text(label, buf);
 }
 
 /** Skip lv_label realloc / WRAP relayout when string unchanged — keeps heap quieter and IDLE fed. */
@@ -366,25 +295,6 @@ void deui_ui_label_set_static_if_changed(lv_obj_t *label, const char *txt) {
     return;
   }
   lv_label_set_text(label, txt);
-}
-
-static void status_icon_apply(lv_obj_t *icon, bool pulse) {
-  if (icon == NULL) {
-    return;
-  }
-  if (pulse) {
-    /** Searching / AP: breathe between portal primary and subtle (no default-theme pink). */
-    lv_color_t c =
-        s_link_pulse_phase ? lv_color_hex(s_color_primary_text) : lv_color_hex(s_color_subtle_fg);
-    lv_obj_set_style_text_color(icon, c, LV_PART_MAIN);
-    lv_obj_set_style_text_opa(icon, LV_OPA_COVER, LV_PART_MAIN);
-  } else {
-    /** Connected: solid portal primary (off-white in dark, near-black in light). */
-    lv_obj_set_style_text_color(icon, lv_color_hex(s_color_primary_text), LV_PART_MAIN);
-    lv_obj_set_style_text_opa(icon, LV_OPA_COVER, LV_PART_MAIN);
-  }
-  /** Default LVGL themes use color filters on some states — symbols were picking up blue/purple tints vs palette. */
-  lv_obj_set_style_color_filter_opa(icon, LV_OPA_TRANSP, LV_PART_MAIN);
 }
 
 /**
@@ -404,12 +314,14 @@ static void deui_ui_theme_nudge_locked(int delta) {
     deui_theme_palette_for_mode(s_theme_mode, &theme);
     s_color_primary_text = theme.primary_text;
     apply_theme_palette(&theme);
-    status_icon_apply(s_ble_icon, s_ble_icon_pulse);
-    status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
+    deui_ui_status_icon_apply(s_ble_icon, s_ble_icon_pulse, s_color_primary_text, s_color_subtle_fg,
+                              s_link_pulse_phase);
+    deui_ui_status_icon_apply(s_wifi_icon, s_wifi_icon_pulse, s_color_primary_text, s_color_subtle_fg,
+                              s_link_pulse_phase);
     if (s_scale_icon_pulse) {
-      status_icon_apply(s_scale_icon, true);
+      deui_ui_status_icon_apply(s_scale_icon, true, s_color_primary_text, s_color_subtle_fg, s_link_pulse_phase);
     } else {
-      status_icon_apply(s_scale_icon, false);
+      deui_ui_status_icon_apply(s_scale_icon, false, s_color_primary_text, s_color_subtle_fg, s_link_pulse_phase);
     }
   }
 }
@@ -475,7 +387,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   const lv_coord_t pressure_arc_sz = lcd_w - 24;
 
   s_flow_arc = lv_arc_create(root);
-  strip_default_theme(s_flow_arc);
+  deui_ui_strip_default_theme(s_flow_arc);
   lv_obj_set_size(s_flow_arc, flow_arc_sz, flow_arc_sz);
   lv_obj_align(s_flow_arc, LV_ALIGN_CENTER, 0, 0);
   lv_obj_clear_flag(s_flow_arc, LV_OBJ_FLAG_CLICKABLE);
@@ -489,7 +401,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_pad_all(s_flow_arc, 0, LV_PART_KNOB);
 
   s_pressure_arc = lv_arc_create(root);
-  strip_default_theme(s_pressure_arc);
+  deui_ui_strip_default_theme(s_pressure_arc);
   lv_obj_set_size(s_pressure_arc, pressure_arc_sz, pressure_arc_sz);
   lv_obj_align(s_pressure_arc, LV_ALIGN_CENTER, 0, 0);
   lv_obj_clear_flag(s_pressure_arc, LV_OBJ_FLAG_CLICKABLE);
@@ -512,7 +424,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   const lv_coord_t card_h = 234;
 
   deui_ui_obj_metrics_card = lv_obj_create(root);
-  strip_default_theme(deui_ui_obj_metrics_card);
+  deui_ui_strip_default_theme(deui_ui_obj_metrics_card);
   /** Default widgets are LV_OBJ_FLAG_SCROLLABLE; clip + transform-zoom labels can omit pixels (e.g. "Searching"). */
   lv_obj_clear_flag(deui_ui_obj_metrics_card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(deui_ui_obj_metrics_card, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
@@ -549,7 +461,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
    * Sits above the metrics block so the 2×2 grid can stay visible with zeros while disconnected / idle.
    */
   deui_ui_obj_machine_state = lv_label_create(root);
-  strip_default_theme(deui_ui_obj_machine_state);
+  deui_ui_strip_default_theme(deui_ui_obj_machine_state);
   lv_obj_add_flag(deui_ui_obj_machine_state, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_set_width(deui_ui_obj_machine_state, card_w - 24);
   lv_label_set_long_mode(deui_ui_obj_machine_state, LV_LABEL_LONG_WRAP);
@@ -561,13 +473,13 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   /** Idle: shifted up so the metric block fits below; Searching mode re-centers in `deui_ui_screen_searching`. */
   lv_obj_align(deui_ui_obj_machine_state, LV_ALIGN_CENTER, 0, -78);
   lv_obj_add_flag(deui_ui_obj_machine_state, LV_OBJ_FLAG_HIDDEN);
-  pin_label_no_theme_recolor(deui_ui_obj_machine_state);
+  deui_ui_pin_label_no_theme_recolor(deui_ui_obj_machine_state);
 
   /*
    * Round panel: icons sit just below the metrics card (taller 2×2 shot grid).
    */
   s_ble_icon = lv_label_create(root);
-  strip_default_theme(s_ble_icon);
+  deui_ui_strip_default_theme(s_ble_icon);
   lv_label_set_text(s_ble_icon, LV_SYMBOL_BLUETOOTH);
   lv_obj_set_style_text_font(s_ble_icon, &lv_font_montserrat_14, LV_PART_MAIN);
   lv_obj_set_style_text_color(s_ble_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
@@ -576,7 +488,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -34, 133);
 
   s_wifi_icon = lv_label_create(root);
-  strip_default_theme(s_wifi_icon);
+  deui_ui_strip_default_theme(s_wifi_icon);
   lv_label_set_text(s_wifi_icon, LV_SYMBOL_WIFI);
   lv_obj_set_style_text_font(s_wifi_icon, &lv_font_montserrat_14, LV_PART_MAIN);
   lv_obj_set_style_text_color(s_wifi_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
@@ -585,7 +497,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_align(s_wifi_icon, LV_ALIGN_CENTER, 56, 133);
 
   s_scale_icon = lv_label_create(root);
-  strip_default_theme(s_scale_icon);
+  deui_ui_strip_default_theme(s_scale_icon);
   /** No dedicated LVGL "scale" glyph in built-ins; `DRIVE` reads well as a compact scale-like icon. */
   lv_label_set_text(s_scale_icon, LV_SYMBOL_DRIVE);
   lv_obj_set_style_text_font(s_scale_icon, &lv_font_montserrat_14, LV_PART_MAIN);
@@ -594,12 +506,12 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_align(s_scale_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
   lv_obj_align(s_scale_icon, LV_ALIGN_CENTER, 0, 133);
   lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -56, 133);
-  pin_label_no_theme_recolor(s_ble_icon);
-  pin_label_no_theme_recolor(s_wifi_icon);
-  pin_label_no_theme_recolor(s_scale_icon);
+  deui_ui_pin_label_no_theme_recolor(s_ble_icon);
+  deui_ui_pin_label_no_theme_recolor(s_wifi_icon);
+  deui_ui_pin_label_no_theme_recolor(s_scale_icon);
 
   s_footer = lv_label_create(root);
-  strip_default_theme(s_footer);
+  deui_ui_strip_default_theme(s_footer);
   lv_obj_set_style_bg_opa(s_footer, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_width(s_footer, lcd_w - 40);
   lv_label_set_long_mode(s_footer, LV_LABEL_LONG_WRAP);
@@ -611,7 +523,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_add_flag(s_footer, LV_OBJ_FLAG_HIDDEN);
 
   s_usb = lv_label_create(root);
-  strip_default_theme(s_usb);
+  deui_ui_strip_default_theme(s_usb);
   lv_obj_set_style_bg_opa(s_usb, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_align(s_usb, LV_ALIGN_TOP_RIGHT, -62, 6);
   lv_obj_set_style_text_font(s_usb, font_regular_16(), LV_PART_MAIN);
@@ -620,7 +532,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_add_flag(s_usb, LV_OBJ_FLAG_HIDDEN);
 
   s_battery = lv_label_create(root);
-  strip_default_theme(s_battery);
+  deui_ui_strip_default_theme(s_battery);
   lv_obj_set_style_bg_opa(s_battery, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_align(s_battery, LV_ALIGN_TOP_RIGHT, -10, 6);
   lv_obj_set_style_text_font(s_battery, font_regular_16(), LV_PART_MAIN);
@@ -628,14 +540,17 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_label_set_text(s_battery, "PWR");
   lv_obj_add_flag(s_battery, LV_OBJ_FLAG_HIDDEN);
 
-  pin_label_no_theme_recolor(s_footer);
-  pin_label_no_theme_recolor(s_usb);
-  pin_label_no_theme_recolor(s_battery);
+  deui_ui_pin_label_no_theme_recolor(s_footer);
+  deui_ui_pin_label_no_theme_recolor(s_usb);
+  deui_ui_pin_label_no_theme_recolor(s_battery);
 
   s_link_next_pulse_us = esp_timer_get_time();
-  status_icon_apply(s_ble_icon, s_ble_icon_pulse);
-  status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
-  status_icon_apply(s_scale_icon, s_scale_icon_pulse);
+  deui_ui_status_icon_apply(s_ble_icon, s_ble_icon_pulse, s_color_primary_text, s_color_subtle_fg,
+                            s_link_pulse_phase);
+  deui_ui_status_icon_apply(s_wifi_icon, s_wifi_icon_pulse, s_color_primary_text, s_color_subtle_fg,
+                            s_link_pulse_phase);
+  deui_ui_status_icon_apply(s_scale_icon, s_scale_icon_pulse, s_color_primary_text, s_color_subtle_fg,
+                            s_link_pulse_phase);
 
   if (deui_ui_obj_machine_state != NULL) {
     lv_obj_move_foreground(deui_ui_obj_machine_state);
@@ -681,16 +596,16 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_ba
 
   /** Numeric values only in labels; captions carry units (ShotSample: group pressure, group flow). */
   if (s_weight_value != NULL) {
-    set_textf(s_weight_value, "%.1f", weight_g);
+    deui_ui_set_textf(s_weight_value, "%.1f", weight_g);
   }
   if (s_time_value != NULL) {
-    set_textf(s_time_value, "%.1f", shot_time_s);
+    deui_ui_set_textf(s_time_value, "%.1f", shot_time_s);
   }
   if (s_pressure_value != NULL) {
-    set_textf(s_pressure_value, "%.1f", pressure_bar);
+    deui_ui_set_textf(s_pressure_value, "%.1f", pressure_bar);
   }
   if (s_flow_value != NULL) {
-    set_textf(s_flow_value, "%.1f", flow_ml_s);
+    deui_ui_set_textf(s_flow_value, "%.1f", flow_ml_s);
   }
 
   if (deui_ui_obj_metrics_card != NULL) {
@@ -705,7 +620,7 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_ba
     } else {
       lv_obj_clear_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
       const int pressure = (int)(pressure_bar * 100.0f + 0.5f);
-      set_arc_marker(s_pressure_arc, pressure, k_pressure_arc_max);
+      deui_ui_set_arc_marker(s_pressure_arc, pressure, k_pressure_arc_max);
     }
   }
   if (s_flow_arc != NULL) {
@@ -715,7 +630,7 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_ba
     } else {
       lv_obj_clear_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
       const int flow = (int)(flow_ml_s * 100.0f + 0.5f);
-      set_arc_marker(s_flow_arc, flow, k_flow_arc_max);
+      deui_ui_set_arc_marker(s_flow_arc, flow, k_flow_arc_max);
     }
   }
 
@@ -735,12 +650,14 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   s_wifi_icon_pulse = !status->wifi_connected;
   s_scale_icon_pulse = !status->scale_connected && status->scale_scanning;
 
-  status_icon_apply(s_ble_icon, s_ble_icon_pulse);
-  status_icon_apply(s_wifi_icon, s_wifi_icon_pulse);
+  deui_ui_status_icon_apply(s_ble_icon, s_ble_icon_pulse, s_color_primary_text, s_color_subtle_fg,
+                            s_link_pulse_phase);
+  deui_ui_status_icon_apply(s_wifi_icon, s_wifi_icon_pulse, s_color_primary_text, s_color_subtle_fg,
+                            s_link_pulse_phase);
   if (status->scale_connected) {
-    status_icon_apply(s_scale_icon, false);
+    deui_ui_status_icon_apply(s_scale_icon, false, s_color_primary_text, s_color_subtle_fg, s_link_pulse_phase);
   } else if (status->scale_scanning) {
-    status_icon_apply(s_scale_icon, true);
+    deui_ui_status_icon_apply(s_scale_icon, true, s_color_primary_text, s_color_subtle_fg, s_link_pulse_phase);
   } else if (s_scale_icon != NULL) {
     lv_obj_set_style_text_color(s_scale_icon, lv_color_hex(s_color_subtle_fg), LV_PART_MAIN);
     lv_obj_set_style_text_opa(s_scale_icon, LV_OPA_COVER, LV_PART_MAIN);
@@ -873,13 +790,16 @@ void deui_ui_tick(void) {
     s_link_pulse_phase = !s_link_pulse_phase;
     if (esp_lv_adapter_lock(-1) == ESP_OK) {
       if (s_ble_icon_pulse) {
-        status_icon_apply(s_ble_icon, true);
+        deui_ui_status_icon_apply(s_ble_icon, true, s_color_primary_text, s_color_subtle_fg,
+                                  s_link_pulse_phase);
       }
       if (s_wifi_icon_pulse) {
-        status_icon_apply(s_wifi_icon, true);
+        deui_ui_status_icon_apply(s_wifi_icon, true, s_color_primary_text, s_color_subtle_fg,
+                                  s_link_pulse_phase);
       }
       if (s_scale_icon_pulse) {
-        status_icon_apply(s_scale_icon, true);
+        deui_ui_status_icon_apply(s_scale_icon, true, s_color_primary_text, s_color_subtle_fg,
+                                  s_link_pulse_phase);
       }
       esp_lv_adapter_unlock();
     }

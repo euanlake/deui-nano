@@ -35,10 +35,8 @@ Out of scope in v1:
   - architecture and source-map guide for senior engineering reviews
 - `fonts/`
   - embedded font source files and related font assets
-- `lib/lvgl/`
-  - vendored LVGL source tree
-- `main/`
-  - Arduino-style parallel/prototype code path (not the canonical ESP-IDF runtime)
+- `archive/`
+  - non-canonical legacy trees (`archive/arduino-prototype/`, `archive/lvgl-v8/`)
 
 Generated/vendor-heavy directories under firmware:
 
@@ -77,6 +75,7 @@ ESPPORT=/dev/cu.usbmodemXXXX ./dev.sh quick
 - Flashing workflow: `docs/controller/FLASHING_CONTROLLER.md`
 - Setup/onboarding flow: `docs/controller/SETUP_GUIDE.md`
 - DE1 BLE protocol context: `docs/de1-bluetooth-protocol.md`
+- Touch debugging handoff notes: `docs/touch-controller-debug-handoff.md`
 
 ## Attribution and lineage
 

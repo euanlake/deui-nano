@@ -1,4 +1,5 @@
 #include "deui_ble_client.h"
+#include "deui_ble_internal.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -86,213 +87,6 @@ static void subscribe_to_state(const struct peer *peer);
 static void subscribe_to_shot(const struct peer *peer);
 static void on_disc_complete(const struct peer *peer, int status, void *arg);
 
-/** Protocol names from `docs/de1-bluetooth-protocol.md` (Major States / Minor / Error minors). */
-static void de1_major_state_name_for_log(uint8_t v, char *out, size_t cap) {
-  const char *n = NULL;
-  switch (v) {
-  case 0x00:
-    n = "Sleep";
-    break;
-  case 0x01:
-    n = "GoingToSleep";
-    break;
-  case 0x02:
-    n = "Idle";
-    break;
-  case 0x03:
-    n = "Busy";
-    break;
-  case 0x04:
-    n = "Espresso";
-    break;
-  case 0x05:
-    n = "Steam";
-    break;
-  case 0x06:
-    n = "HotWater";
-    break;
-  case 0x07:
-    n = "ShortCal";
-    break;
-  case 0x08:
-    n = "SelfTest";
-    break;
-  case 0x09:
-    n = "LongCal";
-    break;
-  case 0x0a:
-    n = "Descale";
-    break;
-  case 0x0b:
-    n = "FatalError";
-    break;
-  case 0x0c:
-    n = "Init";
-    break;
-  case 0x0d:
-    n = "NoRequest";
-    break;
-  case 0x0e:
-    n = "SkipToNext";
-    break;
-  case 0x0f:
-    n = "HotWaterRinse";
-    break;
-  case 0x10:
-    n = "SteamRinse";
-    break;
-  case 0x11:
-    n = "Refill";
-    break;
-  case 0x12:
-    n = "Clean";
-    break;
-  case 0x13:
-    n = "InBootLoader";
-    break;
-  case 0x14:
-    n = "AirPurge";
-    break;
-  case 0x15:
-    n = "ScheduledWake";
-    break;
-  default:
-    break;
-  }
-  if (n != NULL) {
-    snprintf(out, cap, "%s", n);
-  } else {
-    snprintf(out, cap, "unknown(0x%02x)", v);
-  }
-}
-
-static void de1_minor_state_name_for_log(uint8_t v, char *out, size_t cap) {
-  const char *n = NULL;
-  switch (v) {
-  case 0x00:
-    n = "NoState";
-    break;
-  case 0x01:
-    n = "HeatWaterTank";
-    break;
-  case 0x02:
-    n = "HeatWaterHeater";
-    break;
-  case 0x03:
-    n = "StabilizeMixTemp";
-    break;
-  case 0x04:
-    n = "PreInfuse";
-    break;
-  case 0x05:
-    n = "Pour";
-    break;
-  case 0x06:
-    n = "Flush";
-    break;
-  case 0x07:
-    n = "Steaming";
-    break;
-  case 0x08:
-    n = "DescaleInit";
-    break;
-  case 0x09:
-    n = "DescaleFillGroup";
-    break;
-  case 0x0a:
-    n = "DescaleReturn";
-    break;
-  case 0x0b:
-    n = "DescaleGroup";
-    break;
-  case 0x0c:
-    n = "DescaleSteam";
-    break;
-  case 0x0d:
-    n = "CleanInit";
-    break;
-  case 0x0e:
-    n = "CleanFillGroup";
-    break;
-  case 0x0f:
-    n = "CleanSoak";
-    break;
-  case 0x10:
-    n = "CleanGroup";
-    break;
-  case 0x11:
-    n = "PausedRefill";
-    break;
-  case 0x12:
-    n = "PausedSteam";
-    break;
-  case 0x13:
-    n = "UserNotPresent";
-    break;
-  case 0x14:
-    n = "SteamPuff";
-    break;
-  case 0xc8:
-    n = "Error_NaN";
-    break;
-  case 0xc9:
-    n = "Error_Inf";
-    break;
-  case 0xca:
-    n = "Error_Generic";
-    break;
-  case 0xcb:
-    n = "Error_ACC";
-    break;
-  case 0xcc:
-    n = "Error_TSensor";
-    break;
-  case 0xcd:
-    n = "Error_PSensor";
-    break;
-  case 0xce:
-    n = "Error_WLevel";
-    break;
-  case 0xcf:
-    n = "Error_DIP";
-    break;
-  case 0xd0:
-    n = "Error_Assertion";
-    break;
-  case 0xd1:
-    n = "Error_Unsafe";
-    break;
-  case 0xd2:
-    n = "Error_InvalidParm";
-    break;
-  case 0xd3:
-    n = "Error_Flash";
-    break;
-  case 0xd4:
-    n = "Error_OOM";
-    break;
-  case 0xd5:
-    n = "Error_Deadline";
-    break;
-  case 0xd6:
-    n = "Error_HiCurrent";
-    break;
-  case 0xd7:
-    n = "Error_LoCurrent";
-    break;
-  case 0xd8:
-    n = "Error_BootFill";
-    break;
-  default:
-    break;
-  }
-  if (n != NULL) {
-    snprintf(out, cap, "%s", n);
-  } else {
-    snprintf(out, cap, "unknown(0x%02x)", v);
-  }
-}
-
 /** Caller must hold `s_status_mtx`. Emits once per DE1 StateInfo transition from `de1_apply_state_bytes_unlocked`. */
 static void log_ble_de1_state_unlocked(void) {
   char maj[48];
@@ -310,8 +104,8 @@ static void log_ble_de1_state_unlocked(void) {
   strncpy(peer, s_remote_name_snapshot, sizeof peer);
   peer[sizeof peer - 1] = '\0';
 
-  de1_major_state_name_for_log(ma, maj, sizeof maj);
-  de1_minor_state_name_for_log(mi, min, sizeof min);
+  deui_ble_major_state_name_for_log(ma, maj, sizeof maj);
+  deui_ble_minor_state_name_for_log(mi, min, sizeof min);
 
   ESP_LOGI(
       TAG,
@@ -319,86 +113,11 @@ static void log_ble_de1_state_unlocked(void) {
       peer, addr[5], addr[4], addr[3], addr[2], addr[1], addr[0], maj, min, (int)st_ok);
 }
 
-/** Caller must hold `s_status_mtx`. Espresso major (0x04) only — matches brewing UI / shot telemetry gating. */
-static bool de1_shot_time_should_show_unlocked(void) {
-  return s_live.de1_major_state == DE1_MAJOR_STATE_ESPRESSO;
-}
-
 /** Caller must hold `s_status_mtx`. */
 static void de1_format_machine_state_label_unlocked(void) {
   uint8_t maj = s_live.de1_major_state;
   uint8_t min = s_live.de1_minor_state;
-  const char *s = "-";
-
-  switch (maj) {
-  case 0x00:
-  case 0x01:
-    s = "Sleep";
-    break;
-  case 0x02:
-    if (min == 0x00) {
-      s = "Ready";
-    } else if (min == 0x01 || min == 0x02 || min == 0x03) {
-      s = "Heating";
-    } else {
-      s = "Idle";
-    }
-    break;
-  case 0x03:
-    s = "Busy";
-    break;
-  case 0x04:
-    s = "Espresso";
-    break;
-  case 0x05:
-    s = "Steam";
-    break;
-  case 0x06:
-    s = "Hot water";
-    break;
-  case 0x07:
-    s = "Calibrate";
-    break;
-  case 0x08:
-    s = "Self test";
-    break;
-  case 0x09:
-    s = "Calibrate";
-    break;
-  case 0x0a:
-    s = "Descale";
-    break;
-  case 0x0b:
-    s = "Error";
-    break;
-  case 0x0c:
-    s = "Init";
-    break;
-  case 0x0f:
-    s = "Rinse";
-    break;
-  case 0x10:
-    s = "Steam rinse";
-    break;
-  case 0x11:
-    s = "Refill";
-    break;
-  case 0x12:
-    s = "Clean";
-    break;
-  case 0x13:
-    s = "Bootloader";
-    break;
-  case 0x14:
-    s = "Air purge";
-    break;
-  case 0x15:
-    s = "Wake";
-    break;
-  default:
-    s = "Idle";
-    break;
-  }
+  const char *s = deui_ble_machine_state_label(maj, min);
 
   const size_t lbl_cap = sizeof(s_live.machine_state_label) - 1;
   const char *nm = s_remote_name_snapshot;
@@ -479,7 +198,7 @@ static void de1_apply_state_bytes_unlocked(uint8_t major, uint8_t minor) {
     log_ble_de1_state_unlocked();
   }
 
-  if (!de1_shot_time_should_show_unlocked()) {
+  if (!deui_ble_is_espresso_major(s_live.de1_major_state)) {
     /** Drop stale shot-sample presentation while idle so the next notify cannot flash junk. */
     s_live.has_live_data = false;
     s_live.weight_g = 0.f;
@@ -549,7 +268,7 @@ static bool telemetry_apply_unlocked(const uint8_t *payload, uint16_t len) {
   s_live.weight_g = 0.f;
   s_live.shot_time_s = t_s;
   /** Shot-sample stream is continuous; only surface numbers while pulling a shot. */
-  s_live.has_live_data = de1_shot_time_should_show_unlocked();
+  s_live.has_live_data = deui_ble_is_espresso_major(s_live.de1_major_state);
 
   snprintf(s_live.detail_line, sizeof(s_live.detail_line), "%.*s",
            (int)sizeof(s_remote_name_snapshot), s_remote_name_snapshot);
@@ -557,39 +276,6 @@ static bool telemetry_apply_unlocked(const uint8_t *payload, uint16_t len) {
 }
 
 static void scan_resume(void);
-
-static bool name_matches_de1_pattern(const uint8_t *nm, uint8_t len) {
-  if (nm == NULL || len == 0) {
-    return false;
-  }
-
-  /** DE1 advertiser name heuristic (stack buffer, no heap). */
-  char lower[41];
-  size_t copy = len;
-  if (copy >= sizeof(lower)) {
-    copy = sizeof(lower) - 1;
-  }
-
-  size_t span = copy;
-  for (size_t i = 0; i < copy && i < sizeof(lower) - 1; ++i) {
-    unsigned char ch = nm[i];
-    if (ch == '\0') {
-      span = i;
-      break;
-    }
-    lower[i] = (char)tolower((int)ch);
-  }
-  lower[span] = '\0';
-
-  if (!strcmp(lower, "nrf5x")) {
-    return true;
-  }
-  if (strstr(lower, "de1") || strstr(lower, "decent") || strstr(lower, "de1pro") ||
-      strstr(lower, "de1+") || strstr(lower, "de1 ")) {
-    return true;
-  }
-  return false;
-}
 
 static bool adv_announces_de1_service(const struct ble_hs_adv_fields *fields) {
   for (unsigned i = 0; i < fields->num_uuids128; ++i) {
@@ -624,7 +310,7 @@ static bool is_de1_candidate(struct ble_gap_disc_desc const *disc, struct ble_hs
   }
 
   bool uuid_hit = adv_announces_de1_service(fields);
-  bool name_hit = name_matches_de1_pattern(fields->name, fields->name_len);
+  bool name_hit = deui_ble_name_matches_pattern(fields->name, fields->name_len);
   if (matched_uuid_out != NULL) {
     *matched_uuid_out = uuid_hit;
   }
@@ -816,10 +502,8 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     }
     uint16_t h = event->notify_rx.attr_handle;
     if (h == s_state_val_handle && s_state_val_handle != 0) {
-      uint8_t st[4];
-      uint16_t raw_len = OS_MBUF_PKTLEN(event->notify_rx.om);
-      uint16_t n = raw_len > sizeof(st) ? sizeof(st) : raw_len;
-      if (n >= 2 && os_mbuf_copydata(event->notify_rx.om, 0, n, st) == 0) {
+      uint8_t st[2];
+      if (deui_ble_copy_state_bytes(event->notify_rx.om, st)) {
         if (xSemaphoreTake(s_status_mtx, portMAX_DELAY) == pdTRUE) {
           s_live.connected = true;
           de1_apply_state_bytes_unlocked(st[0], st[1]);
@@ -979,13 +663,8 @@ static int on_state_gatt_read(uint16_t conn_handle, const struct ble_gatt_error 
     return 0;
   }
 
-  uint8_t st[4];
-  uint16_t raw_len = OS_MBUF_PKTLEN(attr->om);
-  uint16_t n = raw_len > sizeof(st) ? sizeof(st) : raw_len;
-  if (n < 2) {
-    return 0;
-  }
-  if (os_mbuf_copydata(attr->om, 0, n, st) != 0) {
+  uint8_t st[2];
+  if (!deui_ble_copy_state_bytes(attr->om, st)) {
     return 0;
   }
 
@@ -1350,39 +1029,6 @@ void deui_ble_get_status(deui_ble_status_t *status) {
   }
 
   xSemaphoreGive(s_status_mtx);
-}
-
-/** ShotSample multi-byte fields are big-endian on the wire (matches `docs/de1-bluetooth-protocol.md` + `main/de1_ble_client.cpp`). */
-static uint16_t u16_payload_be(const uint8_t *data) {
-  return ((uint16_t)data[0] << 8) | (uint16_t)data[1];
-}
-
-static uint32_t u32_payload_be(const uint8_t *data) {
-  return ((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16) | ((uint32_t)data[2] << 8) | (uint32_t)data[3];
-}
-
-bool deui_ble_parse_shot_sample(const uint8_t *payload, size_t len, de1_shot_sample_t *out) {
-  if (payload == NULL || out == NULL || len < 12) {
-    return false;
-  }
-
-  /*
-   * ShotSample 0xa00d layout (first 12 bytes used here):
-   * sample_time ms uint16 BE @0; group_pressure / flow uint16 BE @2,@4 (divide by 4096 → bar, ml/s);
-   * mix °C uint16 BE @6 /256; head uint32 BE @8 /65536.
-   */
-  out->sample_time = u16_payload_be(payload + 0);
-  out->group_pressure = (float)u16_payload_be(payload + 2) / 4096.0f;
-  out->group_flow = (float)u16_payload_be(payload + 4) / 4096.0f;
-  out->mix_temperature = (float)u16_payload_be(payload + 6) / 256.0f;
-  out->head_temperature = (float)u32_payload_be(payload + 8) / 65536.0f;
-  return true;
-}
-
-static const char *const s_gap_name = "DEUI-ST77916";
-
-const char *deui_ble_gap_name(void) {
-  return s_gap_name;
 }
 
 void deui_ble_set_scale_weight(float weight_g, bool has_weight, bool connected) {

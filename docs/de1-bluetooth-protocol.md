@@ -237,7 +237,7 @@ Byte 14-15: Target cold water temperature (uint16, big-endian, divide by 256)
 
 #### ShotSample Characteristic
 
-Wire format uses **big-endian** multi-byte integers. Values below match `main/de1_ble_client.cpp` and the ESP32 `deui_ble_parse_shot_sample` decoder (first 12 bytes).
+Wire format uses **big-endian** multi-byte integers. Values below match `archive/arduino-prototype/de1_ble_client.cpp` and the ESP32 decoder in `firmware/esp32/main/ble/deui_ble_parse.c` (first 12 bytes).
 
 ```
 Byte 0-1:   Sample time (uint16, big-endian), milliseconds

@@ -23,7 +23,7 @@ Open a shell for flashing:
 
 ```bash
 source ~/esp/esp-idf/export.sh
-cd "/Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32"
+cd firmware/esp32
 ./dev.sh full
 ```
 
@@ -33,7 +33,7 @@ For regular app updates:
 
 ```bash
 source ~/esp/esp-idf/export.sh
-cd "/Users/euanlake/Library/Mobile Documents/com~apple~CloudDocs/Documents/Local Development/deui-nano-testing/firmware/esp32"
+cd firmware/esp32
 ./dev.sh quick
 ```
 
@@ -65,7 +65,7 @@ idf.py build flash monitor
 This repo’s `board_config.h` matches the [Waveshare Knob 1.8](https://www.waveshare.com/wiki/ESP32-S3-Knob-Touch-LCD-1.8): **ESP32-S3R8**, **16MB flash**, **8MB PSRAM**, Type‑C UART to **S3 or ESP32** depending on cable orientation.
 
 - Flash the **ESP32-S3** image on the **ESP32-S3** serial port (`idf.py -p PORT flash` or `./dev.sh ports`). If flashing fails, flip the Type‑C plug or follow the wiki “dual MCU” instructions.
-- Display/touch pins are defined in `firmware/esp32/main/board_config.h` and match Waveshare (QSPI **13–18**, RST **21**, BL **47**, CST816 I2C **11/12**).
+- Display/touch pins are defined in `firmware/esp32/main/board/board_config.h` and match Waveshare (QSPI **13–18**, RST **21**, BL **47**, CST816 I2C **11/12**).
 - Rotary encoder on the S3 side is **GPIO8 / GPIO7** (not GPIO1/2).
 - Battery sense is **GPIO1** with a **2×** divider scale in firmware — calibrate against a meter if your pack differs.
 

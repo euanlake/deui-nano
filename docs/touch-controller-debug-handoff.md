@@ -8,7 +8,7 @@
 ## Scope Completed
 - Verified parser/UI issues were not the blocker for touch input.
 - Drove investigation down to electrical reachability of touch IC from ESP32-S3 path.
-- Added and exercised runtime diagnostics in `firmware/esp32/main/board_display.c`.
+- Added and exercised runtime diagnostics in `firmware/esp32/main/board/board_display.c`.
 
 ## Evidence Summary (Runtime)
 - Repeated boot logs on ESP32-S3 firmware show:
@@ -47,7 +47,7 @@
   - Status: **confirmed relevant**.
 
 ## Code Changes Made in This Repo
-- `firmware/esp32/main/board_display.c`
+- `firmware/esp32/main/board/board_display.c`
   - Added `[DBG]` runtime diagnostics:
     - bus init config/result
     - GPIO snapshot for TP_INT/TP_RST
@@ -56,7 +56,7 @@
     - scan summary
   - Kept touch bring-up sequence after panel `disp_on` settle delay.
   - Removed rejected forced-reset experiment (`H6`) after evidence collection.
-- `firmware/esp32/main/board_config.h`
+- `firmware/esp32/main/board/board_config.h`
   - Touch INT/RST currently unbound (`GPIO_NUM_NC`) to keep path close to vendor I2C-only demo assumptions during diagnosis.
 
 ## External Validation Work

@@ -43,11 +43,11 @@ firmware/esp32/dependencies.lock.bak
 firmware/esp32/sdkconfig.user
 firmware/esp32/sdkconfig.local
 
-# --- Arduino / PlatformIO (legacy main/ tree, if used) ---
+# --- Arduino / PlatformIO (legacy archived tree, if used) ---
 .pio/
 .pioenvs/
 .piolibdeps/
-main/build/
+archive/arduino-prototype/build/
 *.hex
 *.elf
 *.map
