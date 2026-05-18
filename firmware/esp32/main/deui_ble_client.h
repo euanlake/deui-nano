@@ -13,6 +13,7 @@
 #define DE1_CHAR_REQUESTED_STATE "0000a002-0000-1000-8000-00805f9b34fb"
 
 /** Major states (`docs/de1-bluetooth-protocol.md`) — drive mutually exclusive UI modes. */
+#define DE1_MAJOR_STATE_SLEEP 0x00u
 #define DE1_MAJOR_STATE_IDLE 0x02u
 #define DE1_MAJOR_STATE_ESPRESSO 0x04u
 

@@ -60,6 +60,8 @@ static bool s_scale_connected;
 static bool s_scale_has_weight;
 static float s_scale_weight_g;
 static bool s_suspended;
+/** One-shot per link: wake DE1 from Sleep on connect (matches Deui `turnOn()`). */
+static bool s_connect_wake_resolved;
 
 /** DE1-friendly link parameters (matches legacy DEUI / NimBLE-Arduino client). */
 static const struct ble_gap_conn_params k_de1_conn_params = {
@@ -424,6 +426,44 @@ static void de1_format_machine_state_label_unlocked(void) {
   s_live.machine_state_label[lbl_cap] = '\0';
 }
 
+static esp_err_t de1_write_requested_state(uint8_t state) {
+  if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE || s_requested_state_val_handle == 0) {
+    return ESP_ERR_INVALID_STATE;
+  }
+
+  int rc = ble_gattc_write_flat(s_conn_handle, s_requested_state_val_handle, &state, sizeof(state),
+                                NULL, NULL);
+  if (rc != 0) {
+    ESP_LOGW(TAG, "RequestedState write failed rc=%d", rc);
+    return ESP_FAIL;
+  }
+  return ESP_OK;
+}
+
+/**
+ * After the first StateInfo on a new link, wake a sleeping DE1 (RequestedState = Idle),
+ * same as Deui `DeviceControlService.turnOn()` / PowerToggle.
+ */
+static void de1_maybe_wake_on_connect(uint8_t major) {
+  if (s_connect_wake_resolved) {
+    return;
+  }
+
+  if (major != DE1_MAJOR_STATE_SLEEP) {
+    s_connect_wake_resolved = true;
+    return;
+  }
+
+  if (s_requested_state_val_handle == 0) {
+    return;
+  }
+
+  s_connect_wake_resolved = true;
+  if (de1_write_requested_state(DE1_MAJOR_STATE_IDLE) == ESP_OK) {
+    ESP_LOGI(TAG, "DE1 in Sleep; RequestedState=Idle (wake on connect)");
+  }
+}
+
 /** Caller must hold `s_status_mtx`. */
 static void de1_apply_state_bytes_unlocked(uint8_t major, uint8_t minor) {
   bool had_valid = s_live.de1_state_valid;
@@ -465,6 +505,7 @@ static void status_reset_disconnected(bool scanning) {
   s_scale_connected = false;
   s_scale_has_weight = false;
   s_scale_weight_g = 0.f;
+  s_connect_wake_resolved = false;
   if (scanning) {
     strncpy(s_live.detail_line, "Scanning for DE1…", sizeof(s_live.detail_line) - 1);
     strncpy(s_live.ble_heading, "Bluetooth: idle", sizeof(s_live.ble_heading) - 1);
@@ -735,6 +776,7 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     }
 
     s_conn_handle = event->connect.conn_handle;
+    s_connect_wake_resolved = false;
 
     struct ble_gap_conn_desc connected;
     memset(&connected, 0, sizeof(connected));
@@ -782,6 +824,7 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
           s_live.connected = true;
           de1_apply_state_bytes_unlocked(st[0], st[1]);
           xSemaphoreGive(s_status_mtx);
+          de1_maybe_wake_on_connect(st[0]);
         }
       }
       return 0;
@@ -844,6 +887,7 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
     s_scale_connected = false;
     s_scale_has_weight = false;
     s_scale_weight_g = 0.f;
+    s_connect_wake_resolved = false;
     scan_resume();
     return 0;
   }
@@ -949,6 +993,7 @@ static int on_state_gatt_read(uint16_t conn_handle, const struct ble_gatt_error 
     s_live.connected = true;
     de1_apply_state_bytes_unlocked(st[0], st[1]);
     xSemaphoreGive(s_status_mtx);
+    de1_maybe_wake_on_connect(st[0]);
   }
   return 0;
 }
@@ -1172,6 +1217,7 @@ esp_err_t deui_ble_suspend(void) {
   s_scale_connected = false;
   s_scale_has_weight = false;
   s_scale_weight_g = 0.f;
+  s_connect_wake_resolved = false;
 
   if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
     (void)ble_gap_terminate(s_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
@@ -1350,21 +1396,14 @@ void deui_ble_set_scale_weight(float weight_g, bool has_weight, bool connected) 
 }
 
 esp_err_t deui_ble_request_idle_stop(void) {
-  if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE || !s_gatt_ready) {
+  if (!s_gatt_ready) {
     return ESP_ERR_INVALID_STATE;
   }
-  if (s_requested_state_val_handle == 0) {
-    return ESP_ERR_NOT_FOUND;
-  }
 
-  uint8_t idle_state = 0x02u;
-  int rc = ble_gattc_write_flat(s_conn_handle, s_requested_state_val_handle, &idle_state,
-                                sizeof(idle_state), NULL, NULL);
-  if (rc != 0) {
-    ESP_LOGW(TAG, "RequestedState write failed rc=%d", rc);
-    return ESP_FAIL;
+  esp_err_t rc = de1_write_requested_state(DE1_MAJOR_STATE_IDLE);
+  if (rc == ESP_OK) {
+    ESP_LOGI(TAG, "RequestedState=Idle stop sent");
   }
-  ESP_LOGI(TAG, "RequestedState=Idle stop sent");
-  return ESP_OK;
+  return rc;
 }
 
