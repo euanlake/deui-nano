@@ -23,6 +23,7 @@ idf_component_register(
     "ui/screens/deui_ui_screen_idle.c"
     "ui/screens/deui_ui_screen_brewing.c"
     "../../../fonts/LabGrotesque_Regular_16.c"
+    "../../../fonts/LabGrotesque_Bold_24.c"
     "../../../fonts/LabGrotesque_Bold_48.c"
     "input/input.c"
     "net/wifi_setup.c"

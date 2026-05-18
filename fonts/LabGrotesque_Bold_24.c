@@ -955,7 +955,7 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap_bold_24[] = {
  *  GLYPH DESCRIPTION
  *--------------------*/
 
-static const lv_font_fmt_txt_glyph_dsc_bold_24_t glyph_dsc_bold_24[] = {
+static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc_bold_24[] = {
     {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
     {.bitmap_index = 0, .adv_w = 84, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 0, .adv_w = 114, .box_w = 5, .box_h = 17, .ofs_x = 1, .ofs_y = 0},
@@ -1082,7 +1082,7 @@ static const lv_font_fmt_txt_cmap_t cmaps_bold_24[] =
     },
     {
         .range_start = 176, .range_length = 8419, .glyph_id_start = 96,
-        .unicode_list = unicode_list_1, .glyph_id_ofs_list = NULL, .list_length = 10, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
+        .unicode_list = unicode_list_1_bold_24, .glyph_id_ofs_list = NULL, .list_length = 10, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
     }
 };
 
@@ -1516,11 +1516,11 @@ static const int8_t kern_class_values_bold_24[] =
 
 
 /*Collect the kern class' data in one place*/
-static const lv_font_fmt_txt_kern_classes_bold_24_t kern_classes_bold_24 =
+static const lv_font_fmt_txt_kern_classes_t kern_classes_bold_24 =
 {
-    .class_pair_values   = kern_class_values,
-    .left_class_mapping  = kern_left_class_mapping,
-    .right_class_mapping = kern_right_class_mapping,
+    .class_pair_values   = kern_class_values_bold_24,
+    .left_class_mapping  = kern_left_class_mapping_bold_24,
+    .right_class_mapping = kern_right_class_mapping_bold_24,
     .left_class_cnt      = 62,
     .right_class_cnt     = 49,
 };
@@ -1531,7 +1531,7 @@ static const lv_font_fmt_txt_kern_classes_bold_24_t kern_classes_bold_24 =
 
 #if LVGL_VERSION_MAJOR == 8
 /*Store all the custom data of the font*/
-static  lv_font_fmt_txt_glyph_cache_bold_24_t cache_bold_24;
+static  lv_font_fmt_txt_glyph_cache_t cache_bold_24;
 #endif
 
 #if LVGL_VERSION_MAJOR >= 8
