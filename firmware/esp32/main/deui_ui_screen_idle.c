@@ -1,16 +1,17 @@
 /**
- * Connected to DE1 but not major **Espresso** (0x04): headline + metrics grid (transparent plate).
- * Mutually exclusive with brewing and searching screens.
- *
- * Not routed from `deui_ui_update_status` while `DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED` is 1 in
- * `deui_ui_priv.h` — kept for when Espresso gating is restored.
+ * Connected to DE1 but not in active extraction: machine-state headline.
+ * Post-shot saved peaks use the metrics grid when `show_saved_metrics` is true.
  */
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"
 
-void deui_ui_screen_apply_idle(const char *machine_state_center) {
+void deui_ui_screen_apply_idle(const char *machine_state_center, bool show_saved_metrics) {
   if (deui_ui_obj_metrics_card != NULL) {
-    lv_obj_clear_flag(deui_ui_obj_metrics_card, LV_OBJ_FLAG_HIDDEN);
+    if (show_saved_metrics) {
+      lv_obj_clear_flag(deui_ui_obj_metrics_card, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(deui_ui_obj_metrics_card, LV_OBJ_FLAG_HIDDEN);
+    }
   }
   if (deui_ui_obj_machine_state == NULL || machine_state_center == NULL) {
     return;

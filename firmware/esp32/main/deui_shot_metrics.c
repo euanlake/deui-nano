@@ -24,13 +24,17 @@ enum {
 };
 static const float k_flow_min_peak_ml_s = 0.5f;
 
-static bool minor_is_busy_extraction(uint8_t minor) {
-  return minor == k_minor_heat_water_heater || minor == k_minor_preinfuse || minor == k_minor_pour ||
-         minor == k_minor_flush;
-}
-
 static deui_shot_metrics_values_t s_saved = {0};
 static bool s_has_saved = false;
+
+bool deui_shot_metrics_minor_is_active_extraction(uint8_t minor_state) {
+  return minor_state == k_minor_heat_water_heater || minor_state == k_minor_preinfuse ||
+         minor_state == k_minor_pour || minor_state == k_minor_flush;
+}
+
+bool deui_shot_metrics_has_saved(void) {
+  return s_has_saved;
+}
 
 static float s_max_weight_g = 0.f;
 static float s_max_pressure_bar = 0.f;
@@ -161,13 +165,6 @@ static void fill_live(deui_shot_metrics_values_t *out, uint8_t minor_state, floa
   }
 }
 
-static void fill_session_peaks(deui_shot_metrics_values_t *out, float live_shot_time_s) {
-  out->weight_g = s_max_weight_g;
-  out->shot_time_s = live_shot_time_s;
-  out->pressure_bar = s_max_pressure_bar;
-  out->flow_ml_s = s_max_flow_ml_s;
-}
-
 void deui_shot_metrics_resolve(bool in_espresso, uint8_t minor_state, float live_weight_g,
                                float live_shot_time_s, float live_pressure_bar, float live_flow_ml_s,
                                deui_shot_metrics_values_t *out_values, bool *out_show, bool *out_live) {
@@ -180,12 +177,10 @@ void deui_shot_metrics_resolve(bool in_espresso, uint8_t minor_state, float live
   *out_live = false;
 
   if (in_espresso) {
-    *out_show = true;
-    if (minor_is_busy_extraction(minor_state)) {
+    if (deui_shot_metrics_minor_is_active_extraction(minor_state)) {
       fill_live(out_values, minor_state, live_weight_g, live_shot_time_s, live_pressure_bar, live_flow_ml_s);
+      *out_show = true;
       *out_live = true;
-    } else {
-      fill_session_peaks(out_values, live_shot_time_s);
     }
     return;
   }

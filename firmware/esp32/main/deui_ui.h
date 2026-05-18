@@ -18,8 +18,8 @@ typedef struct {
   char ble_footer[160];
 
   /**
-   * Center label when connected and idle (Waiting..., Idle, Ready, …).
-   * Ignored while disconnected (UI forces "Searching") and while extracting (metrics view).
+   * Center label on the idle layout (Waiting..., Idle, Ready, …).
+   * Ignored while disconnected ("Searching") and during live extraction (brewing layout).
    */
   char machine_state_center[24];
 
@@ -32,6 +32,13 @@ typedef struct {
   /** From DE1 StateInfo; when connected and major ≠ Espresso (0x04), idle layout is shown regardless of validity. */
   bool de1_state_valid;
   uint8_t de1_major_state;
+  uint8_t de1_minor_state;
+
+  /**
+   * When connected and on idle layout: show the metrics grid with saved post-shot peaks.
+   * Ignored while searching or on the live brewing layout.
+   */
+  bool show_saved_shot_metrics;
 } deui_ui_status_t;
 
 esp_err_t deui_ui_init(lv_disp_t *display);

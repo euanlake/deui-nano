@@ -11,6 +11,7 @@
 
 #include "board_config.h"
 #include "deui_ble_client.h"
+#include "deui_shot_metrics.h"
 #include "deui_theme.h"
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"
@@ -776,7 +777,6 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
 
   /** One mode at a time: visibility is owned by `deui_ui_screen_*.c`. */
 #if DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED
-  /** Temporary: always brewing chrome when connected — idle module kept but not routed (see `deui_ui_priv.h`). */
   if (!status->ble_connected) {
     deui_ui_screen_apply_searching();
   } else {
@@ -784,20 +784,19 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   }
   const bool shot_layout = status->ble_connected;
 #else
-  /** Brewing chrome + arcs: DE1 major Espresso (0x04) only — `deui_ui_screen_apply_brewing` must stay in sync. */
-  const bool de1_brew =
-      status->ble_connected && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+  const bool de1_live_extract =
+      status->ble_connected && (status->de1_major_state == DE1_MAJOR_STATE_ESPRESSO) &&
+      deui_shot_metrics_minor_is_active_extraction(status->de1_minor_state);
 
   if (!status->ble_connected) {
     deui_ui_screen_apply_searching();
-  } else if (de1_brew) {
+  } else if (de1_live_extract) {
     deui_ui_screen_apply_brewing();
   } else {
-    /** Any connected non-Espresso major → idle layout (headline + metrics plate); never status-only layout. */
-    deui_ui_screen_apply_idle(status->machine_state_center);
+    deui_ui_screen_apply_idle(status->machine_state_center, status->show_saved_shot_metrics);
   }
 
-  const bool shot_layout = de1_brew;
+  const bool shot_layout = de1_live_extract;
 #endif
 
   if (shot_layout != s_metrics_shot_layout) {

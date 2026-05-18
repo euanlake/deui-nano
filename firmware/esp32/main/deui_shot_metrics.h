@@ -14,6 +14,12 @@ typedef struct {
   float flow_ml_s;
 } deui_shot_metrics_values_t;
 
+/** True during PreInfuse / Pour / Flush and related busy minors (live extraction UI). */
+bool deui_shot_metrics_minor_is_active_extraction(uint8_t minor_state);
+
+/** True after a completed shot until the next Espresso major entry. */
+bool deui_shot_metrics_has_saved(void);
+
 /** Zero tracking and saved snapshot (new espresso session). */
 void deui_shot_metrics_on_espresso_enter(void);
 

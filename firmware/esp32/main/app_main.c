@@ -229,8 +229,16 @@ void app_main(void) {
     ui_status.machine_state_center[sizeof(ui_status.machine_state_center) - 1] = '\0';
     ui_status.de1_state_valid = ble_status.de1_state_valid;
     ui_status.de1_major_state = ble_status.de1_major_state;
+    ui_status.de1_minor_state = ble_status.de1_minor_state;
     ui_status.show_shot_time = ble_status.show_shot_time;
     ui_status.show_scale_weight = ble_status.show_scale_weight;
+
+    const bool in_espresso =
+        ble_status.connected && (ble_status.de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
+    const bool active_extraction =
+        in_espresso && deui_shot_metrics_minor_is_active_extraction(ble_status.de1_minor_state);
+    ui_status.show_saved_shot_metrics =
+        ble_status.connected && deui_shot_metrics_has_saved() && !active_extraction;
 
     deui_ui_update_status(&ui_status);
 
@@ -238,12 +246,9 @@ void app_main(void) {
     float t_s = 0.f;
     float flow = ble_status.flow_ml_s;
     float bar = ble_status.pressure_bar;
-    /** Match `deui_ui_update_status`: shot metrics only in DE1 major Espresso (0x04), regardless of state_valid. */
-    const bool brew_ui =
-        ble_status.connected && (ble_status.de1_major_state == DE1_MAJOR_STATE_ESPRESSO);
     const bool preinfuse_or_later =
-        brew_ui && (ble_status.de1_minor_state >= k_de1_minor_preinfuse);
-    if (!brew_ui) {
+        in_espresso && (ble_status.de1_minor_state >= k_de1_minor_preinfuse);
+    if (!in_espresso) {
       shot_timer_armed = false;
       shot_timer_start_us = 0;
     } else if (preinfuse_or_later && !shot_timer_armed) {
@@ -256,13 +261,13 @@ void app_main(void) {
         t_s = 0.f;
       }
     }
-    deui_shot_metrics_update(brew_ui, ble_status.de1_minor_state, prev_minor_for_metrics,
+    deui_shot_metrics_update(in_espresso, ble_status.de1_minor_state, prev_minor_for_metrics,
                              prev_major_for_metrics, w_g, t_s, bar, flow);
 
     deui_shot_metrics_values_t metrics = {0};
     bool show_metrics = false;
     bool metrics_live = false;
-    deui_shot_metrics_resolve(brew_ui, ble_status.de1_minor_state, w_g, t_s, bar, flow, &metrics,
+    deui_shot_metrics_resolve(in_espresso, ble_status.de1_minor_state, w_g, t_s, bar, flow, &metrics,
                               &show_metrics, &metrics_live);
     deui_ui_update_metrics(metrics.weight_g, metrics.shot_time_s, metrics.pressure_bar,
                            metrics.flow_ml_s, show_metrics, metrics_live);

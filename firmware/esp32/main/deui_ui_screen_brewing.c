@@ -1,6 +1,6 @@
 /**
- * Brewing presentation: hide headline, show metrics capsule (+ arcs when `shot_layout` is true).
- * Routed for every connected DE1 while `DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED`; otherwise Espresso (0x04) only.
+ * Live extraction: hide headline, show metrics capsule (+ arcs when `shot_layout` is true).
+ * Routed only while DE1 major Espresso (0x04) and an active extraction minor.
  */
 #include "deui_ui_priv.h"
 #include "deui_ui_screens.h"
