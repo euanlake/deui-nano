@@ -35,7 +35,7 @@ typedef struct {
 } deui_ui_status_t;
 
 esp_err_t deui_ui_init(lv_disp_t *display);
-void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, float pressure_bar,
+void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_bar, float flow_ml_s,
                             bool show_shot_metrics);
 void deui_ui_update_status(const deui_ui_status_t *status);
 void deui_ui_indicate_ring_step(int delta);

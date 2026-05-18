@@ -508,6 +508,10 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_coord_t cell_w = (inner_w - gap) / 2;
   lv_coord_t cell_h = (inner_h - gap) / 2;
 
+  /**
+   * 2×2 grid (left→right, top→bottom): weight | time, then pressure | flow.
+   * Corners anchor each cell inside the padded card.
+   */
   create_shot_metric_cell(deui_ui_obj_metrics_card, &s_weight_col, &s_weight_label, &s_weight_value, "WEIGHT (G)", cell_w,
                            cell_h, LV_ALIGN_TOP_LEFT, &theme);
   create_shot_metric_cell(deui_ui_obj_metrics_card, &s_time_col, &s_time_label, &s_time_value, "TIME (S)", cell_w, cell_h,
@@ -632,7 +636,7 @@ esp_err_t deui_ui_init(lv_disp_t *display) {
   return err;
 }
 
-void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, float pressure_bar,
+void deui_ui_update_metrics(float weight_g, float shot_time_s, float pressure_bar, float flow_ml_s,
                             bool show_shot_metrics) {
   if (esp_lv_adapter_lock(-1) != ESP_OK) {
     return;
@@ -641,8 +645,8 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, 
   if (!show_shot_metrics) {
     weight_g = 0.f;
     shot_time_s = 0.f;
-    flow_ml_s = 0.f;
     pressure_bar = 0.f;
+    flow_ml_s = 0.f;
   }
 
   /** Numeric values only in labels; captions carry units (ShotSample: group pressure, group flow). */
@@ -663,16 +667,6 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, 
     lv_obj_invalidate(deui_ui_obj_metrics_card);
   }
 
-  if (s_flow_arc != NULL) {
-    if (!show_shot_metrics) {
-      lv_arc_set_value(s_flow_arc, 0);
-      lv_obj_add_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
-    } else {
-      lv_obj_clear_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
-      const int flow = (int)(flow_ml_s * 100.0f + 0.5f);
-      set_arc_marker(s_flow_arc, flow, k_flow_arc_max);
-    }
-  }
   if (s_pressure_arc != NULL) {
     if (!show_shot_metrics) {
       lv_arc_set_value(s_pressure_arc, 0);
@@ -681,6 +675,16 @@ void deui_ui_update_metrics(float weight_g, float shot_time_s, float flow_ml_s, 
       lv_obj_clear_flag(s_pressure_arc, LV_OBJ_FLAG_HIDDEN);
       const int pressure = (int)(pressure_bar * 100.0f + 0.5f);
       set_arc_marker(s_pressure_arc, pressure, k_pressure_arc_max);
+    }
+  }
+  if (s_flow_arc != NULL) {
+    if (!show_shot_metrics) {
+      lv_arc_set_value(s_flow_arc, 0);
+      lv_obj_add_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_clear_flag(s_flow_arc, LV_OBJ_FLAG_HIDDEN);
+      const int flow = (int)(flow_ml_s * 100.0f + 0.5f);
+      set_arc_marker(s_flow_arc, flow, k_flow_arc_max);
     }
   }
 

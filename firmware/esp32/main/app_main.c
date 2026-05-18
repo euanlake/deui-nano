@@ -147,7 +147,7 @@ void app_main(void) {
       flow = 0.f;
       bar = 0.f;
     }
-    deui_ui_update_metrics(w_g, t_s, flow, bar, shot_metrics);
+    deui_ui_update_metrics(w_g, t_s, bar, flow, shot_metrics);
 
     if (ble_status.connected) {
       (void)lm_ctrl_leds_set_status(LM_CTRL_LED_STATUS_CONNECTED);
