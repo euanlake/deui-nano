@@ -28,7 +28,7 @@ enum {
   k_de1_minor_preinfuse = 0x04,
 };
 
-static void suspend_radios_for_battery(void) {
+static void suspend_radios_for_sleep(void) {
   if (deui_scale_suspend() != ESP_OK) {
     ESP_LOGW(TAG, "Failed to suspend scale client");
   }
@@ -53,19 +53,19 @@ static void log_wakeup_reason(void) {
   }
 }
 
-static void enter_battery_deep_sleep(void) {
+static void enter_idle_deep_sleep(void) {
   const uint64_t wake_mask = (1ULL << LM_CTRL_KNOB_A) | (1ULL << LM_CTRL_KNOB_B);
   if (!esp_sleep_is_valid_wakeup_gpio(LM_CTRL_KNOB_A) ||
       !esp_sleep_is_valid_wakeup_gpio(LM_CTRL_KNOB_B)) {
     ESP_LOGE(TAG, "Encoder GPIOs are not valid deep-sleep wake sources (A=%d, B=%d)",
              LM_CTRL_KNOB_A, LM_CTRL_KNOB_B);
-    suspend_radios_for_battery();
+    suspend_radios_for_sleep();
     (void)lm_ctrl_backlight_off();
     (void)lm_ctrl_leds_set_status(LM_CTRL_LED_STATUS_IDLE);
     return;
   }
 
-  suspend_radios_for_battery();
+  suspend_radios_for_sleep();
   (void)lm_ctrl_backlight_off();
   (void)lm_ctrl_leds_set_status(LM_CTRL_LED_STATUS_IDLE);
   vTaskDelay(pdMS_TO_TICKS(20));
@@ -75,7 +75,7 @@ static void enter_battery_deep_sleep(void) {
     ESP_LOGW(TAG, "Failed to clear old wake sources: %s", esp_err_to_name(wake_disable_rc));
   }
   ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(wake_mask, ESP_EXT1_WAKEUP_ANY_LOW));
-  ESP_LOGI(TAG, "Entering deep sleep (battery). Rotary wake mask=0x%llx", (unsigned long long)wake_mask);
+  ESP_LOGI(TAG, "Entering deep sleep (idle). Rotary wake mask=0x%llx", (unsigned long long)wake_mask);
   esp_deep_sleep_start();
 }
 
@@ -147,28 +147,23 @@ void app_main(void) {
                (int)power_info.charging);
     }
 
-    const deui_power_policy_state_t next_power_state =
-        deui_power_policy_step(&power_policy, &power_info, now_us);
+    const deui_power_policy_state_t next_power_state = deui_power_policy_step(&power_policy, now_us);
     if (next_power_state != power_state) {
-      if (next_power_state == DEUI_POWER_POLICY_BAT_SLEEP) {
-        enter_battery_deep_sleep();
+      if (next_power_state == DEUI_POWER_POLICY_SLEEP) {
+        enter_idle_deep_sleep();
       } else {
-        if (next_power_state == DEUI_POWER_POLICY_AC_DIMMED) {
-          (void)lm_ctrl_backlight_set(DEUI_POWER_DIM_BRIGHTNESS_PERCENT);
-        } else {
-          (void)lm_ctrl_backlight_set(DEUI_POWER_ACTIVE_BRIGHTNESS_PERCENT);
-        }
+        (void)lm_ctrl_backlight_set(DEUI_POWER_ACTIVE_BRIGHTNESS_PERCENT);
       }
       power_state = next_power_state;
     }
 
-    if (power_state != DEUI_POWER_POLICY_BAT_SLEEP) {
+    if (power_state != DEUI_POWER_POLICY_SLEEP) {
       deui_ble_tick();
     }
     deui_ble_status_t ble_pre_status = {0};
     deui_ble_get_status(&ble_pre_status);
 
-    if (power_state != DEUI_POWER_POLICY_BAT_SLEEP) {
+    if (power_state != DEUI_POWER_POLICY_SLEEP) {
       deui_scale_tick(ble_pre_status.connected);
     }
     deui_scale_status_t scale_status = {0};
@@ -274,7 +269,7 @@ void app_main(void) {
 
     previous_minor_state = ble_status.de1_minor_state;
 
-    if (power_state == DEUI_POWER_POLICY_BAT_SLEEP) {
+    if (power_state == DEUI_POWER_POLICY_SLEEP) {
       (void)lm_ctrl_leds_set_status(LM_CTRL_LED_STATUS_IDLE);
     } else if (ble_status.connected) {
       (void)lm_ctrl_leds_set_status(LM_CTRL_LED_STATUS_CONNECTED);

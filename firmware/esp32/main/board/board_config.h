@@ -60,10 +60,9 @@
 #define LM_CTRL_BATTERY_VOLTAGE_DIVIDER 2.0f
 #define LM_CTRL_BATTERY_LOW_PERCENT 20
 
-/** Power policy defaults (single timeout for dimming/sleep entry). */
+/** Power policy defaults (idle timeout before deep sleep). */
 #define DEUI_POWER_IDLE_TIMEOUT_MS 300000UL
 #define DEUI_POWER_ACTIVE_BRIGHTNESS_PERCENT 100
-#define DEUI_POWER_DIM_BRIGHTNESS_PERCENT 1
 
 /*
  * RGB ring — verify against your exact SKU / factory demo if LEDs do not light.
