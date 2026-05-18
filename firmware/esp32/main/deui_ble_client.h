@@ -60,6 +60,9 @@ typedef struct {
 } deui_ble_status_t;
 
 esp_err_t deui_ble_init(void);
+esp_err_t deui_ble_suspend(void);
+esp_err_t deui_ble_resume(void);
+bool deui_ble_is_suspended(void);
 void deui_ble_tick(void);
 void deui_ble_get_status(deui_ble_status_t *status);
 void deui_ble_set_scale_weight(float weight_g, bool has_weight, bool connected);

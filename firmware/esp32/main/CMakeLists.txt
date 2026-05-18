@@ -7,6 +7,7 @@ idf_component_register(
     "board_leds.c"
     "board_power.c"
     "deui_ble_client.c"
+    "deui_power_policy.c"
     "deui_scale_client.c"
     "deui_weight_stop.c"
     "deui_ble_hci_compat.c"

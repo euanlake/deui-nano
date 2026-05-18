@@ -56,8 +56,14 @@
 #define LM_CTRL_BATTERY_CHARGE_GPIO GPIO_NUM_NC
 #define LM_CTRL_BATTERY_CHARGE_ACTIVE_LEVEL 0
 #define LM_CTRL_BATTERY_SAMPLE_INTERVAL_MS 30000UL
+/* Cross-check: Waveshare `01_ADC_Test` uses the same 2:1 scaling on ADC1_CH0. */
 #define LM_CTRL_BATTERY_VOLTAGE_DIVIDER 2.0f
 #define LM_CTRL_BATTERY_LOW_PERCENT 20
+
+/** Power policy defaults (single timeout for dimming/sleep entry). */
+#define DEUI_POWER_IDLE_TIMEOUT_MS 300000UL
+#define DEUI_POWER_ACTIVE_BRIGHTNESS_PERCENT 100
+#define DEUI_POWER_DIM_BRIGHTNESS_PERCENT 1
 
 /*
  * RGB ring — verify against your exact SKU / factory demo if LEDs do not light.

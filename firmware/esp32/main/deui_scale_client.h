@@ -16,6 +16,9 @@ typedef struct {
 } deui_scale_status_t;
 
 esp_err_t deui_scale_init(void);
+esp_err_t deui_scale_suspend(void);
+esp_err_t deui_scale_resume(void);
+bool deui_scale_is_suspended(void);
 void deui_scale_tick(bool allow_scan);
 void deui_scale_get_status(deui_scale_status_t *status);
 esp_err_t deui_scale_send_tare(void);

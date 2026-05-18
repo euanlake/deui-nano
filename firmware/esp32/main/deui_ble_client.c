@@ -59,6 +59,7 @@ static int64_t s_last_state_read_us;
 static bool s_scale_connected;
 static bool s_scale_has_weight;
 static float s_scale_weight_g;
+static bool s_suspended;
 
 /** DE1-friendly link parameters (matches legacy DEUI / NimBLE-Arduino client). */
 static const struct ble_gap_conn_params k_de1_conn_params = {
@@ -629,7 +630,7 @@ static bool connect_to_peer(const ble_addr_t *peer_addr) {
 }
 
 static void scan_resume(void) {
-  if (!s_nimble_ready) {
+  if (!s_nimble_ready || s_suspended) {
     return;
   }
   if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE || s_discovery_pending || s_gatt_ready ||
@@ -1122,6 +1123,7 @@ static void host_task(void *param) {
 esp_err_t deui_ble_init(void) {
   memset(&s_live, 0, sizeof(s_live));
   memset(s_remote_name_snapshot, 0, sizeof(s_remote_name_snapshot));
+  s_suspended = false;
 
   s_status_mtx = xSemaphoreCreateMutex();
   if (s_status_mtx == NULL) {
@@ -1154,8 +1156,52 @@ esp_err_t deui_ble_init(void) {
   return ESP_OK;
 }
 
+esp_err_t deui_ble_suspend(void) {
+  if (s_suspended) {
+    return ESP_OK;
+  }
+
+  s_suspended = true;
+  s_connect_pending = false;
+  s_discovery_pending = false;
+  s_gatt_ready = false;
+  s_shot_val_handle = 0;
+  s_state_val_handle = 0;
+  s_requested_state_val_handle = 0;
+  s_last_state_read_us = 0;
+  s_scale_connected = false;
+  s_scale_has_weight = false;
+  s_scale_weight_g = 0.f;
+
+  if (s_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+    (void)ble_gap_terminate(s_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+    peer_delete(s_conn_handle);
+    s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+  }
+  (void)ble_gap_disc_cancel();
+  status_reset_disconnected(false);
+  ESP_LOGI(TAG, "BLE suspended");
+  return ESP_OK;
+}
+
+esp_err_t deui_ble_resume(void) {
+  if (!s_suspended) {
+    return ESP_OK;
+  }
+
+  s_suspended = false;
+  status_reset_disconnected(true);
+  scan_resume();
+  ESP_LOGI(TAG, "BLE resumed");
+  return ESP_OK;
+}
+
+bool deui_ble_is_suspended(void) {
+  return s_suspended;
+}
+
 void deui_ble_tick(void) {
-  if (!s_nimble_ready) {
+  if (!s_nimble_ready || s_suspended) {
     return;
   }
 

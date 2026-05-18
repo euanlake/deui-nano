@@ -12,4 +12,7 @@ typedef struct {
 } deui_wifi_info_t;
 
 esp_err_t deui_wifi_init(void);
+esp_err_t deui_wifi_suspend(void);
+esp_err_t deui_wifi_resume(void);
+bool deui_wifi_is_suspended(void);
 void deui_wifi_get_info(deui_wifi_info_t *info);

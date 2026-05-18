@@ -40,6 +40,7 @@ enum {
 static SemaphoreHandle_t s_scale_mtx;
 static deui_scale_status_t s_scale_status;
 static bool s_initialized;
+static bool s_suspended;
 
 static ble_uuid_any_t s_uuid_scale_svc;
 static ble_uuid_any_t s_uuid_scale_data;
@@ -115,9 +116,46 @@ esp_err_t deui_scale_init(void) {
   }
 
   s_next_scan_us = 0;
+  s_suspended = false;
   s_initialized = true;
   ESP_LOGI(TAG, "Scale client initialized (BOOKOO only)");
   return ESP_OK;
+}
+
+esp_err_t deui_scale_suspend(void) {
+  if (!s_initialized || s_suspended) {
+    return ESP_OK;
+  }
+
+  s_suspended = true;
+  s_connect_pending = false;
+  s_scale_discovery_pending = false;
+  s_pending_name[0] = '\0';
+
+  if (s_scale_status.scanning) {
+    (void)ble_gap_disc_cancel();
+  }
+  if (s_scale_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+    (void)ble_gap_terminate(s_scale_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+    peer_delete(s_scale_conn_handle);
+  }
+  reset_scale_connection_state();
+  ESP_LOGI(TAG, "Scale client suspended");
+  return ESP_OK;
+}
+
+esp_err_t deui_scale_resume(void) {
+  if (!s_initialized || !s_suspended) {
+    return ESP_OK;
+  }
+  s_suspended = false;
+  s_next_scan_us = 0;
+  ESP_LOGI(TAG, "Scale client resumed");
+  return ESP_OK;
+}
+
+bool deui_scale_is_suspended(void) {
+  return s_suspended;
 }
 
 void deui_scale_get_status(deui_scale_status_t *status) {
@@ -153,6 +191,9 @@ esp_err_t deui_scale_send_tare(void) {
 
 void deui_scale_tick(bool allow_scan) {
   if (!s_initialized || !ble_hs_synced()) {
+    return;
+  }
+  if (s_suspended) {
     return;
   }
 

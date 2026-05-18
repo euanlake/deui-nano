@@ -20,6 +20,8 @@ static deui_wifi_info_t s_info = {
   .hostname = "deui-controller",
 };
 static httpd_handle_t s_httpd = NULL;
+static bool s_wifi_initialized = false;
+static bool s_wifi_suspended = false;
 
 static esp_err_t captive_redirect(httpd_req_t *req) {
   httpd_resp_set_status(req, "302 Found");
@@ -114,6 +116,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id, voi
     s_info.sta_connected = false;
   } else if (id == WIFI_EVENT_AP_START) {
     s_info.ap_running = true;
+  } else if (id == WIFI_EVENT_AP_STOP) {
+    s_info.ap_running = false;
   }
 }
 
@@ -127,6 +131,10 @@ static void ip_event_handler(void *arg, esp_event_base_t base, int32_t id, void 
 }
 
 static esp_err_t start_http(void) {
+  if (s_httpd != NULL) {
+    return ESP_OK;
+  }
+
   httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
   ESP_RETURN_ON_ERROR(httpd_start(&s_httpd, &cfg), TAG, "HTTP server start failed");
 
@@ -143,6 +151,18 @@ static esp_err_t start_http(void) {
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &apple), TAG, "Register Apple probe failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(s_httpd, &ncsi), TAG, "Register Windows probe failed");
   return ESP_OK;
+}
+
+static esp_err_t stop_http(void) {
+  if (s_httpd == NULL) {
+    return ESP_OK;
+  }
+  esp_err_t err = httpd_stop(s_httpd);
+  if (err == ESP_OK) {
+    s_httpd = NULL;
+    s_info.ap_running = false;
+  }
+  return err;
 }
 
 esp_err_t deui_wifi_init(void) {
@@ -173,8 +193,50 @@ esp_err_t deui_wifi_init(void) {
   ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_AP, &ap_cfg), TAG, "Set AP config failed");
   ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "Wi-Fi start failed");
   ESP_RETURN_ON_ERROR(start_http(), TAG, "Start setup HTTP failed");
+  s_wifi_initialized = true;
+  s_wifi_suspended = false;
   ESP_LOGI(TAG, "DEUI setup AP started: SSID=%s pass=deui-setup url=http://192.168.4.1/", s_info.ap_ssid);
   return ESP_OK;
+}
+
+esp_err_t deui_wifi_suspend(void) {
+  if (!s_wifi_initialized || s_wifi_suspended) {
+    return ESP_OK;
+  }
+
+  esp_err_t err = stop_http();
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "HTTP stop failed during suspend: %s", esp_err_to_name(err));
+  }
+
+  err = esp_wifi_stop();
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  s_info.sta_connected = false;
+  s_info.ap_running = false;
+  s_wifi_suspended = true;
+  ESP_LOGI(TAG, "Wi-Fi suspended");
+  return ESP_OK;
+}
+
+esp_err_t deui_wifi_resume(void) {
+  if (!s_wifi_initialized || !s_wifi_suspended) {
+    return ESP_OK;
+  }
+
+  ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "Wi-Fi start failed on resume");
+  (void)esp_wifi_connect();
+  ESP_RETURN_ON_ERROR(start_http(), TAG, "HTTP restart failed on resume");
+
+  s_wifi_suspended = false;
+  ESP_LOGI(TAG, "Wi-Fi resumed");
+  return ESP_OK;
+}
+
+bool deui_wifi_is_suspended(void) {
+  return s_wifi_suspended;
 }
 
 void deui_wifi_get_info(deui_wifi_info_t *info) {
