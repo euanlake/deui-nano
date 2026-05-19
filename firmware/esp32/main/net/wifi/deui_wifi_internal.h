@@ -36,6 +36,7 @@ typedef struct {
   int dns_socket;
   esp_timer_handle_t reconnect_timer;
   esp_timer_handle_t setup_teardown_timer;
+  esp_timer_handle_t setup_restore_timer;
   bool sta_provision_active;
   bool sta_provision_failed;
   int64_t sta_provision_started_us;
@@ -64,6 +65,8 @@ esp_err_t deui_wifi_settings_save(const char *ssid, const char *password, const 
 esp_err_t deui_wifi_settings_clear(void);
 
 esp_err_t deui_wifi_start_portal(void);
+/** Start the HTTP portal on STA when credentials are saved (home Wi-Fi). */
+esp_err_t deui_wifi_portal_ensure_on_sta(void);
 esp_err_t deui_wifi_stop_portal(void);
 esp_err_t deui_wifi_portal_register_handlers(httpd_handle_t server);
 
@@ -79,6 +82,8 @@ void deui_wifi_provision_begin(void);
 void deui_wifi_provision_on_got_ip(void);
 void deui_wifi_provision_note_sta_disconnect(uint8_t reason);
 void deui_wifi_provision_write_status_json(char *buf, size_t buf_size);
+/** After HTTP response completes, restore setup SoftAP (network reset). */
+void deui_wifi_schedule_restore_setup_ap(void);
 
 uint32_t deui_wifi_reconnect_delay_ms(uint8_t disconnect_count);
 bool deui_wifi_reopen_ap_after_disconnects(uint8_t disconnect_count);

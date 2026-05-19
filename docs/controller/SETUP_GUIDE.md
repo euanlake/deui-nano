@@ -17,6 +17,9 @@ This guide documents the v1 local setup flow for the DEUI controller.
 4. Join the AP from your phone or computer.
 5. Open **http://deui.local/** in the browser (or **http://192.168.4.1/** if mDNS is unavailable).
 6. Use **Wi-Fi** to save your home network; use **Stop at weight** for the shot target.
+7. After the controller joins your home network, connect your phone or computer to that **same** Wi-Fi and open **http://deui.local/** (or the STA IP shown in the serial log, e.g. `http://192.168.0.117/`).
+
+The setup AP (`DEUI-XXXX` at `192.168.4.1`) is only for provisioning. It is removed once the controller has joined your home network.
 
 ## Portal features (v1)
 

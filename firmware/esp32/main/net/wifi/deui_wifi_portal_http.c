@@ -226,6 +226,7 @@ static esp_err_t handle_wifi_status_get(httpd_req_t *req) {
 }
 
 static esp_err_t handle_reset_post(httpd_req_t *req) {
+  char message[220];
   esp_err_t err;
 
   err = deui_wifi_settings_clear();
@@ -241,12 +242,18 @@ static esp_err_t handle_reset_post(httpd_req_t *req) {
   g_deui_wifi.info.sta_ip[0] = '\0';
   strlcpy(g_deui_wifi.info.hostname, DEUI_WIFI_DEFAULT_HOSTNAME, sizeof(g_deui_wifi.info.hostname));
 
-  (void)esp_wifi_disconnect();
-  if (deui_wifi_configure_ap(true) != ESP_OK) {
-    return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to restore setup AP");
+  (void)snprintf(
+      message, sizeof(message),
+      "Saved network cleared. Join \"%s\" (password \"%s\"), then open " DEUI_WIFI_PORTAL_URL " or http://"
+      DEUI_WIFI_PORTAL_IP "/.",
+      g_deui_wifi.info.ap_ssid, g_deui_wifi.info.ap_password);
+
+  /* Send the page before switching Wi-Fi modes so the client receives the response. */
+  err = deui_wifi_portal_send_message(req, "Reset complete", message);
+  if (err == ESP_OK) {
+    deui_wifi_schedule_restore_setup_ap();
   }
-  g_deui_wifi.portal_running = true;
-  return deui_wifi_portal_send_message(req, "Reset complete", "Saved network cleared. Setup AP restored.");
+  return err;
 }
 
 static esp_err_t handle_scan_get(httpd_req_t *req) {

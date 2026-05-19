@@ -207,9 +207,12 @@ static void ip_event_handler(void *arg, esp_event_base_t base, int32_t id, void 
     deui_wifi_mdns_on_got_ip();
     g_deui_wifi.wifi_join_boost_until_us = 0;
     deui_wifi_apply_coex_preference();
+    if (g_deui_wifi.info.has_saved_credentials) {
+      (void)deui_wifi_portal_ensure_on_sta();
+    }
     if (g_deui_wifi.info.ap_running) {
       deui_wifi_provision_on_got_ip();
-      ESP_LOGI(TAG, "STA online — setup AP will stop shortly (portal stays up for status page)");
+      ESP_LOGI(TAG, "STA online — setup AP will stop shortly (portal moves to home Wi-Fi)");
     }
   } else if (id == IP_EVENT_AP_STAIPASSIGNED) {
     ip_event_ap_staipassigned_t *event = (ip_event_ap_staipassigned_t *)event_data;

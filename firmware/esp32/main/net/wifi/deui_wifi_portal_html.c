@@ -42,13 +42,17 @@ static const char PORTAL_CSS[] =
     ".card+.card{margin-top:1rem;}"
     ".control-label{display:block;margin:0 0 0.5rem;font-size:0.625rem;line-height:2rem;letter-spacing:0.15em;"
     "text-transform:uppercase;color:var(--text-secondary);font-weight:500;}"
-    ".control-box{display:block;width:100%;max-width:21.375rem;height:64px;border-radius:16px;"
+    ".control-box{display:block;width:100%;max-width:342px;height:64px;border-radius:16px;box-sizing:border-box;"
     "background:var(--field-surface);text-decoration:none;-webkit-tap-highlight-color:transparent;}"
     ".control-select{display:flex;align-items:center;justify-content:center;color:var(--input-text);"
     "font:inherit;font-weight:500;font-size:1.25rem;line-height:64px;text-align:center;}"
     ".control-select--muted{color:var(--text-secondary);}"
     ".control-select:active{opacity:0.8;}"
-    ".field-input-wrap{width:100%;height:64px;border-radius:16px;overflow:hidden;background:var(--field-surface);}"
+    ".field-input-wrap{width:100%;max-width:342px;height:64px;border-radius:16px;overflow:hidden;"
+    "background:var(--field-surface);box-sizing:border-box;}"
+    ".wifi-form{display:flex;flex-direction:column;align-items:flex-start;width:100%;}"
+    ".wifi-form .control-box,.wifi-form .field-input-wrap,.wifi-form .btn,.wifi-form hr{width:100%;"
+    "max-width:342px;box-sizing:border-box;}"
     ".field-input{display:block;width:100%;height:100%;margin:0;padding:0 1rem;border:0;border-radius:16px;"
     "background:var(--field-surface);color:var(--input-text);font:inherit;font-weight:500;font-size:1.25rem;"
     "line-height:64px;text-align:center;outline:none;-webkit-appearance:none;appearance:none;"
@@ -56,7 +60,7 @@ static const char PORTAL_CSS[] =
     ".field-input:focus{color:var(--text);}"
     ".field-input::placeholder{color:#404040;opacity:1;}"
     ".field-block{margin-top:1rem;}"
-    ".btn{display:flex;align-items:center;justify-content:center;width:100%;max-width:21.375rem;"
+    ".btn{display:flex;align-items:center;justify-content:center;width:100%;max-width:342px;box-sizing:border-box;"
     "min-height:64px;margin:1rem 0 0;padding:0.75rem 1rem;border:0;border-radius:8px;"
     "background:var(--btn-bg);color:var(--btn-text);font:inherit;font-weight:500;font-size:1.25rem;"
     "line-height:1.25;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;"
@@ -76,14 +80,15 @@ static const char PORTAL_CSS[] =
     ".menu-nav-btn__chevron{flex-shrink:0;display:block;width:11px;height:16px;}"
     ".control-block{margin-top:1rem;}"
     ".control-block+.control-block{margin-top:1rem;}"
-    ".toggle-shell{position:relative;width:100%;max-width:21.375rem;height:88px;border-radius:16px;"
-    "background:var(--card);}"
-    ".toggle{position:relative;width:312px;height:64px;margin:12px auto;}"
-    ".toggle-pill{position:absolute;top:0;left:50%;width:150px;height:64px;margin-left:-75px;"
+    ".toggle-shell{position:relative;display:flex;align-items:center;justify-content:center;"
+    "width:100%;max-width:21.375rem;height:88px;padding:12px;border-radius:16px;background:var(--card);"
+    "box-sizing:border-box;}"
+    ".toggle{position:relative;width:312px;height:64px;flex:0 0 auto;}"
+    ".toggle-pill{position:absolute;top:50%;left:50%;width:150px;height:64px;margin-left:-75px;"
     "border-radius:12px;background:var(--btn-bg);pointer-events:none;transition:transform 200ms linear;"
-    "z-index:1;}"
-    ".toggle--on .toggle-pill{transform:translateX(calc(-75px - 6px));}"
-    ".toggle--off .toggle-pill{transform:translateX(calc(75px + 6px));}"
+    "z-index:1;transform:translateY(-50%);}"
+    ".toggle--on .toggle-pill{transform:translate(calc(-75px - 6px),-50%);}"
+    ".toggle--off .toggle-pill{transform:translate(calc(75px + 6px),-50%);}"
     ".toggle-labels{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:12px;"
     "pointer-events:none;z-index:2;}"
     ".toggle-label--on{left:0;}"
@@ -163,7 +168,7 @@ static const char PORTAL_CONNECT_JS[] =
     "status.textContent='Connected';"
     "detail.textContent=j.message||('DEUI is on '+ssid+'.');"
     "if(j.ip){detail.textContent+=' IP: '+j.ip;}"
-    "if(hint){hint.textContent='Setup Wi-Fi is turning off. DEUI will stay on your network as deui.local.';}"
+    "if(hint){hint.textContent='Join the same Wi-Fi on your phone, then open http://deui.local/ or the IP shown above.';}"
     "setConnectCard('success');setConnectActions(true);return;}"
     "if(j.phase==='failed'){"
     "status.textContent='Could not connect';"
@@ -385,17 +390,17 @@ static void url_encode_component(const char *src, char *dst, size_t dst_size) {
 }
 
 esp_err_t deui_wifi_portal_send_home(httpd_req_t *req) {
-  esp_err_t err = portal_begin(req, "DEUI", "Setup", false);
+  esp_err_t err = portal_begin(req, "DEUI", "SETUP", false);
   if (err != ESP_OK) {
     return err;
   }
-  err = httpd_resp_sendstr_chunk(req, "<nav class='menu' aria-label='Setup'>");
+  err = httpd_resp_sendstr_chunk(req, "<nav class='menu' aria-label='SETUP'>");
   if (err != ESP_OK) {
     return err;
   }
   err = httpd_resp_sendstr_chunk(req,
                                  "<a class='menu-nav-btn' href='/wifi'>"
-                                 "<span class='menu-nav-btn__label'>WiFi</span>");
+                                 "<span class='menu-nav-btn__label'>WIFI</span>");
   if (err != ESP_OK) {
     return err;
   }
@@ -409,7 +414,7 @@ esp_err_t deui_wifi_portal_send_home(httpd_req_t *req) {
   }
   err = httpd_resp_sendstr_chunk(req,
                                  "<a class='menu-nav-btn' href='/weight'>"
-                                 "<span class='menu-nav-btn__label'>Stop at Weight</span>");
+                                 "<span class='menu-nav-btn__label'>STOP AT WEIGHT</span>");
   if (err != ESP_OK) {
     return err;
   }
@@ -433,13 +438,14 @@ esp_err_t deui_wifi_portal_send_wifi(httpd_req_t *req, const char *prefill_ssid)
 
   html_escape(ssid_raw, ssid_value_esc, sizeof(ssid_value_esc));
 
-  err = portal_begin(req, "WIFI — DEUI", "WiFi", true);
+  err = portal_begin(req, "WIFI — DEUI", "WIFI", true);
   if (err != ESP_OK) {
     return err;
   }
 
   (void)snprintf(
       body, sizeof(s_portal_wifi_body),
+      "<div class='wifi-form'>"
       "<form method='POST' action='/save'>"
       "<label class='control-label' for='ssid_display'>WIFI NAME</label>"
       "<a class='control-box control-select%s' id='ssid_display' href='/scan'>%s</a>"
@@ -450,12 +456,12 @@ esp_err_t deui_wifi_portal_send_wifi(httpd_req_t *req, const char *prefill_ssid)
       "<input class='field-input' id='password' name='password' type='password' autocomplete='off' "
       "placeholder='Password'/>"
       "</div></div>"
-      "<button class='btn' type='submit'>Save &amp; connect</button>"
+      "<button class='btn' type='submit'>Save &amp; Connect</button>"
       "</form>"
       "<hr/>"
       "<form method='POST' action='/reset'>"
-      "<button class='btn btn--danger' type='submit'>Reset saved network</button>"
-      "</form>",
+      "<button class='btn btn--danger' type='submit'>Reset Saved Network</button>"
+      "</form></div>",
       has_ssid ? "" : " control-select--muted", has_ssid ? ssid_value_esc : "Select Network", ssid_value_esc);
 
   err = httpd_resp_sendstr_chunk(req, body);

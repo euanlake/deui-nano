@@ -4,6 +4,7 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_wifi.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -19,12 +20,11 @@ static void setup_teardown_timer_cb(void *arg) {
   if (!g_deui_wifi.info.sta_connected) {
     return;
   }
-  (void)deui_wifi_stop_portal();
   deui_wifi_stop_captive_dns();
   (void)deui_wifi_disable_ap();
-  g_deui_wifi.portal_running = false;
+  (void)deui_wifi_portal_ensure_on_sta();
   g_deui_wifi.sta_provision_active = false;
-  ESP_LOGI(TAG, "Setup AP and portal stopped after successful join");
+  ESP_LOGI(TAG, "Setup AP stopped; portal remains on home Wi-Fi (deui.local)");
 }
 
 static esp_err_t ensure_setup_teardown_timer(void) {
@@ -36,6 +36,58 @@ static esp_err_t ensure_setup_teardown_timer(void) {
       .name = "deui_wifi_ap_down",
   };
   return esp_timer_create(&args, &g_deui_wifi.setup_teardown_timer);
+}
+
+static void restore_setup_ap_timer_cb(void *arg) {
+  (void)arg;
+
+  if (g_deui_wifi.setup_teardown_timer != NULL) {
+    (void)esp_timer_stop(g_deui_wifi.setup_teardown_timer);
+  }
+
+  g_deui_wifi.sta_provision_active = false;
+  g_deui_wifi.sta_provision_failed = false;
+  g_deui_wifi.sta_provision_started_us = 0;
+  g_deui_wifi.sta_disconnect_count = 0;
+  g_deui_wifi.info.sta_connected = false;
+  g_deui_wifi.info.sta_connecting = false;
+  g_deui_wifi.info.sta_ip[0] = '\0';
+
+  (void)esp_wifi_disconnect();
+  if (deui_wifi_configure_ap(true) != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to restore setup AP after reset");
+    return;
+  }
+  (void)deui_wifi_start_captive_dns();
+  if (g_deui_wifi.httpd == NULL) {
+    (void)deui_wifi_start_portal();
+  }
+  g_deui_wifi.portal_running = g_deui_wifi.httpd != NULL;
+  ESP_LOGI(TAG, "Setup AP restored: SSID=\"%s\" pass=\"%s\" portal=%s", g_deui_wifi.info.ap_ssid,
+           g_deui_wifi.info.ap_password, g_deui_wifi.portal_running ? "up" : "down");
+  deui_wifi_log_join_state("reset_setup_ap");
+}
+
+static esp_err_t ensure_setup_restore_timer(void) {
+  if (g_deui_wifi.setup_restore_timer != NULL) {
+    return ESP_OK;
+  }
+  const esp_timer_create_args_t args = {
+      .callback = restore_setup_ap_timer_cb,
+      .name = "deui_wifi_ap_rst",
+  };
+  return esp_timer_create(&args, &g_deui_wifi.setup_restore_timer);
+}
+
+void deui_wifi_schedule_restore_setup_ap(void) {
+  if (ensure_setup_restore_timer() != ESP_OK || g_deui_wifi.setup_restore_timer == NULL) {
+    ESP_LOGW(TAG, "Setup restore timer unavailable; restoring AP immediately");
+    restore_setup_ap_timer_cb(NULL);
+    return;
+  }
+  (void)esp_timer_stop(g_deui_wifi.setup_restore_timer);
+  (void)esp_timer_start_once(g_deui_wifi.setup_restore_timer, 500000);
+  ESP_LOGI(TAG, "Scheduled setup AP restore in 500 ms");
 }
 
 void deui_wifi_provision_begin(void) {

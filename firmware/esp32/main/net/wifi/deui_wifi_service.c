@@ -119,6 +119,7 @@ esp_err_t deui_wifi_init(void) {
 
   if (!has_saved_credentials) {
     ESP_RETURN_ON_ERROR(deui_wifi_start_portal(), TAG, "Portal start failed");
+    (void)deui_wifi_start_captive_dns();
     g_deui_wifi.portal_running = true;
     g_deui_wifi.info.ap_running = true;
     g_deui_wifi.info.sta_connecting = false;
