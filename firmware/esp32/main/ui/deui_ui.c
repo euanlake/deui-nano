@@ -21,13 +21,13 @@
 
 lv_obj_t *deui_ui_obj_machine_state = NULL;
 lv_obj_t *deui_ui_obj_metrics_card = NULL;
+lv_obj_t *deui_ui_obj_footer = NULL;
 
 LV_FONT_DECLARE(LabGrotesque_Regular_16);
 LV_FONT_DECLARE(LabGrotesque_Bold_48);
 LV_FONT_DECLARE(lv_font_montserrat_14);
 LV_FONT_DECLARE(lv_font_montserrat_40);
 
-static lv_obj_t *s_footer = NULL;
 static lv_obj_t *s_weight_label = NULL;
 static lv_obj_t *s_weight_value = NULL;
 static lv_obj_t *s_time_label = NULL;
@@ -214,8 +214,8 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
     lv_obj_set_style_text_color(s_scale_icon, lv_color_hex(theme->primary_text), LV_PART_MAIN);
     lv_obj_set_style_color_filter_opa(s_scale_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   }
-  if (s_footer != NULL) {
-    lv_obj_set_style_text_color(s_footer, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
+  if (deui_ui_obj_footer != NULL) {
+    lv_obj_set_style_text_color(deui_ui_obj_footer, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
   }
   if (s_usb != NULL) {
     lv_obj_set_style_text_color(s_usb, lv_color_hex(theme->subtle_text), LV_PART_MAIN);
@@ -237,7 +237,7 @@ static void apply_theme_palette(const deui_theme_palette_t *theme) {
   deui_ui_pin_label_no_theme_recolor(s_ble_icon);
   deui_ui_pin_label_no_theme_recolor(s_wifi_icon);
   deui_ui_pin_label_no_theme_recolor(s_scale_icon);
-  deui_ui_pin_label_no_theme_recolor(s_footer);
+  deui_ui_pin_label_no_theme_recolor(deui_ui_obj_footer);
   deui_ui_pin_label_no_theme_recolor(s_usb);
   deui_ui_pin_label_no_theme_recolor(s_battery);
 }
@@ -510,17 +510,17 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   deui_ui_pin_label_no_theme_recolor(s_wifi_icon);
   deui_ui_pin_label_no_theme_recolor(s_scale_icon);
 
-  s_footer = lv_label_create(root);
-  deui_ui_strip_default_theme(s_footer);
-  lv_obj_set_style_bg_opa(s_footer, LV_OPA_TRANSP, LV_PART_MAIN);
-  lv_obj_set_width(s_footer, lcd_w - 40);
-  lv_label_set_long_mode(s_footer, LV_LABEL_LONG_WRAP);
-  lv_obj_align(s_footer, LV_ALIGN_BOTTOM_MID, 0, -50);
-  lv_obj_set_style_text_color(s_footer, lv_color_hex(theme.subtle_text), LV_PART_MAIN);
-  lv_obj_set_style_text_align(s_footer, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_set_style_text_font(s_footer, font_regular_16(), LV_PART_MAIN);
-  lv_label_set_text(s_footer, "");
-  lv_obj_add_flag(s_footer, LV_OBJ_FLAG_HIDDEN);
+  deui_ui_obj_footer = lv_label_create(root);
+  deui_ui_strip_default_theme(deui_ui_obj_footer);
+  lv_obj_set_style_bg_opa(deui_ui_obj_footer, LV_OPA_TRANSP, LV_PART_MAIN);
+  lv_obj_set_width(deui_ui_obj_footer, lcd_w - 40);
+  lv_label_set_long_mode(deui_ui_obj_footer, LV_LABEL_LONG_WRAP);
+  lv_obj_align(deui_ui_obj_footer, LV_ALIGN_BOTTOM_MID, 0, -50);
+  lv_obj_set_style_text_color(deui_ui_obj_footer, lv_color_hex(theme.subtle_text), LV_PART_MAIN);
+  lv_obj_set_style_text_align(deui_ui_obj_footer, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+  lv_obj_set_style_text_font(deui_ui_obj_footer, font_regular_16(), LV_PART_MAIN);
+  lv_label_set_text(deui_ui_obj_footer, "");
+  lv_obj_add_flag(deui_ui_obj_footer, LV_OBJ_FLAG_HIDDEN);
 
   s_usb = lv_label_create(root);
   deui_ui_strip_default_theme(s_usb);
@@ -540,7 +540,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_label_set_text(s_battery, "PWR");
   lv_obj_add_flag(s_battery, LV_OBJ_FLAG_HIDDEN);
 
-  deui_ui_pin_label_no_theme_recolor(s_footer);
+  deui_ui_pin_label_no_theme_recolor(deui_ui_obj_footer);
   deui_ui_pin_label_no_theme_recolor(s_usb);
   deui_ui_pin_label_no_theme_recolor(s_battery);
 
@@ -664,9 +664,16 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
     lv_obj_set_style_color_filter_opa(s_scale_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   }
 
-  if (s_footer != NULL) {
-    /** Peer name / address line omitted — BLE status is the icons only. */
-    lv_obj_add_flag(s_footer, LV_OBJ_FLAG_HIDDEN);
+  if (deui_ui_obj_footer != NULL) {
+    if (status->ble_connected && status->ble_footer[0] != '\0') {
+      deui_ui_label_set_static_if_changed(deui_ui_obj_footer, status->ble_footer);
+      lv_obj_clear_flag(deui_ui_obj_footer, LV_OBJ_FLAG_HIDDEN);
+    } else if (!status->ble_connected && status->wifi_footer[0] != '\0') {
+      deui_ui_label_set_static_if_changed(deui_ui_obj_footer, status->wifi_footer);
+      lv_obj_clear_flag(deui_ui_obj_footer, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(deui_ui_obj_footer, LV_OBJ_FLAG_HIDDEN);
+    }
   }
 
   if (s_usb != NULL) {

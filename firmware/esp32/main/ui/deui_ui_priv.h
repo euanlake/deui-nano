@@ -8,6 +8,7 @@
 
 extern lv_obj_t *deui_ui_obj_machine_state;
 extern lv_obj_t *deui_ui_obj_metrics_card;
+extern lv_obj_t *deui_ui_obj_footer;
 
 /** Set to 1 only for temporary “always brewing chrome when connected” bring-up. */
 #ifndef DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED

@@ -61,10 +61,13 @@ typedef struct {
 } deui_ble_status_t;
 
 esp_err_t deui_ble_init(void);
+bool deui_ble_is_initialized(void);
 esp_err_t deui_ble_suspend(void);
 esp_err_t deui_ble_resume(void);
 bool deui_ble_is_suspended(void);
 void deui_ble_tick(void);
+/** Stop BLE discovery so a phone can complete WPA/DHCP (called from Wi-Fi join boost). */
+void deui_ble_yield_radio_for_wifi(void);
 void deui_ble_get_status(deui_ble_status_t *status);
 void deui_ble_set_scale_weight(float weight_g, bool has_weight, bool connected);
 esp_err_t deui_ble_request_idle_stop(void);

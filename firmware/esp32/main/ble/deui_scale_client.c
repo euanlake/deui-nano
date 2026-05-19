@@ -1,4 +1,5 @@
 #include "deui_scale_client.h"
+#include "deui_ble_client.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -190,7 +191,7 @@ esp_err_t deui_scale_send_tare(void) {
 }
 
 void deui_scale_tick(bool allow_scan) {
-  if (!s_initialized || !ble_hs_synced()) {
+  if (!s_initialized || !deui_ble_is_initialized() || !ble_hs_synced()) {
     return;
   }
   if (s_suspended) {

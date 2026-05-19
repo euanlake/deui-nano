@@ -1,5 +1,6 @@
 #include "deui_ble_client.h"
 #include "deui_ble_internal.h"
+#include "deui_wifi.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -61,6 +62,7 @@ static bool s_scale_connected;
 static bool s_scale_has_weight;
 static float s_scale_weight_g;
 static bool s_suspended;
+static bool s_ble_initialized;
 /** One-shot per link: wake DE1 from Sleep on connect (matches Deui `turnOn()`). */
 static bool s_connect_wake_resolved;
 
@@ -356,6 +358,35 @@ static bool connect_to_peer(const ble_addr_t *peer_addr) {
   return true;
 }
 
+/** Shorter bursts + longer quiet gap so phones can auth/DHCP between DE1 scans. */
+static const uint32_t k_provision_scan_ms = 6000;
+static const int64_t k_provision_quiet_us = 8 * 1000000LL;
+
+static uint32_t de1_scan_duration_ms(void) {
+  if (deui_wifi_is_provisioning()) {
+    return k_provision_scan_ms;
+  }
+  return BLE_HS_FOREVER;
+}
+
+void deui_ble_yield_radio_for_wifi(void) {
+  if (!s_nimble_ready || s_suspended) {
+    return;
+  }
+  if (s_live.scanning) {
+    const int rc = ble_gap_disc_cancel();
+    if (rc == 0) {
+      ESP_LOGI(TAG, "BLE discovery paused (rc=0) so phone can join Wi-Fi AP");
+    } else {
+      ESP_LOGW(TAG, "ble_gap_disc_cancel rc=%d (Wi-Fi join may still contend)", rc);
+    }
+    if (xSemaphoreTake(s_status_mtx, pdMS_TO_TICKS(30)) == pdTRUE) {
+      s_live.scanning = false;
+      xSemaphoreGive(s_status_mtx);
+    }
+  }
+}
+
 static void scan_resume(void) {
   if (!s_nimble_ready || s_suspended) {
     return;
@@ -364,9 +395,18 @@ static void scan_resume(void) {
       s_connect_pending) {
     return;
   }
+  if (deui_wifi_block_ble_scan()) {
+    ESP_LOGD(TAG, "BLE scan deferred (join boost or awaiting DHCP)");
+    return;
+  }
 
   locked_heading_detail_scan(true, "Bluetooth: scanning", "Scanning for DE1…");
-  ESP_LOGI(TAG, "BLE: searching for DE1");
+  if (deui_wifi_is_provisioning()) {
+    ESP_LOGI(TAG, "BLE: DE1 scan started (~%us) — join phone to Wi-Fi during the quiet gap after this",
+             (unsigned)(k_provision_scan_ms / 1000));
+  } else {
+    ESP_LOGI(TAG, "BLE: searching for DE1");
+  }
 
   uint8_t own_addr_type = 0;
   int rc = ble_hs_id_infer_auto(0, &own_addr_type);
@@ -379,9 +419,15 @@ static void scan_resume(void) {
   /** Active scan so SCAN_RSP includes the device name. */
   p.passive = 0;
 
-  rc = ble_gap_disc(own_addr_type, BLE_HS_FOREVER, &p, gap_event, NULL);
+  const uint32_t scan_ms = de1_scan_duration_ms();
+  rc = ble_gap_disc(own_addr_type, scan_ms, &p, gap_event, NULL);
   if (rc != 0) {
     ESP_LOGE(TAG, "ble_gap_disc failed rc=%d", rc);
+    return;
+  }
+  if (xSemaphoreTake(s_status_mtx, pdMS_TO_TICKS(30)) == pdTRUE) {
+    s_live.scanning = true;
+    xSemaphoreGive(s_status_mtx);
   }
 }
 
@@ -578,6 +624,19 @@ static int gap_event(struct ble_gap_event *event, void *arg) {
 
   case BLE_GAP_EVENT_DISC_COMPLETE:
     ESP_LOGD(TAG, "GAP scan procedure complete status=%d", event->disc_complete.reason);
+    if (xSemaphoreTake(s_status_mtx, pdMS_TO_TICKS(30)) == pdTRUE) {
+      s_live.scanning = false;
+      xSemaphoreGive(s_status_mtx);
+    }
+    if (deui_wifi_block_ble_scan()) {
+      return 0;
+    }
+    if (deui_wifi_is_provisioning() && s_conn_handle == BLE_HS_CONN_HANDLE_NONE && !s_connect_pending) {
+      /* Quiet window between DE1 scan bursts (do not start next scan until this expires). */
+      deui_wifi_extend_join_boost(k_provision_quiet_us, "scan_quiet");
+      return 0;
+    }
+    scan_resume();
     return 0;
 
   case BLE_GAP_EVENT_TERM_FAILURE:
@@ -845,6 +904,10 @@ static void host_task(void *param) {
 }
 
 esp_err_t deui_ble_init(void) {
+  if (s_ble_initialized) {
+    return ESP_OK;
+  }
+
   memset(&s_live, 0, sizeof(s_live));
   memset(s_remote_name_snapshot, 0, sizeof(s_remote_name_snapshot));
   s_suspended = false;
@@ -876,8 +939,13 @@ esp_err_t deui_ble_init(void) {
 
   nimble_port_freertos_init(host_task);
 
+  s_ble_initialized = true;
   ESP_LOGD(TAG, "NimBLE host started (GAP \"%s\")", deui_ble_gap_name());
   return ESP_OK;
+}
+
+bool deui_ble_is_initialized(void) {
+  return s_ble_initialized;
 }
 
 esp_err_t deui_ble_suspend(void) {
@@ -926,9 +994,22 @@ bool deui_ble_is_suspended(void) {
 }
 
 void deui_ble_tick(void) {
-  if (!s_nimble_ready || s_suspended) {
+  static bool s_prev_join_boost;
+
+  if (!s_ble_initialized || !s_nimble_ready || s_suspended) {
     return;
   }
+
+  if (deui_wifi_is_provisioning()) {
+    deui_wifi_poll_ap_clients();
+  }
+
+  const bool join_boost = deui_wifi_block_ble_scan();
+  if (s_prev_join_boost && !join_boost && s_conn_handle == BLE_HS_CONN_HANDLE_NONE &&
+      !s_discovery_pending && !s_gatt_ready && !s_connect_pending && !s_live.scanning) {
+    scan_resume();
+  }
+  s_prev_join_boost = join_boost;
 
   if (s_connect_pending && s_conn_handle == BLE_HS_CONN_HANDLE_NONE && !s_discovery_pending) {
     s_connect_pending = false;
@@ -968,6 +1049,10 @@ void deui_ble_tick(void) {
 
 void deui_ble_get_status(deui_ble_status_t *status) {
   if (status == NULL) {
+    return;
+  }
+  if (!s_ble_initialized || s_status_mtx == NULL) {
+    memset(status, 0, sizeof(*status));
     return;
   }
   if (xSemaphoreTake(s_status_mtx, pdMS_TO_TICKS(120)) != pdTRUE) {
@@ -1032,6 +1117,9 @@ void deui_ble_get_status(deui_ble_status_t *status) {
 }
 
 void deui_ble_set_scale_weight(float weight_g, bool has_weight, bool connected) {
+  if (!s_ble_initialized || s_status_mtx == NULL) {
+    return;
+  }
   if (xSemaphoreTake(s_status_mtx, pdMS_TO_TICKS(60)) != pdTRUE) {
     return;
   }

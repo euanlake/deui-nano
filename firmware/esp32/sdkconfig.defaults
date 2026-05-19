@@ -19,6 +19,8 @@ CONFIG_BT_NIMBLE_ENABLED=y
 CONFIG_BT_NIMBLE_LOG_LEVEL_WARNING=y
 CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
 CONFIG_ESP_WIFI_STA_SUPPORT=y
+# Setup AP uses WPA2-PSK only; WPA3-SAE on SoftAP breaks joins on some phones.
+CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT=n
 
 # DE1 (nRF52) compatibility: avoid BLE 5 PHY / host privacy with legacy peripherals.
 # LE Data Length auto-negotiation is disabled in deui_ble_hci_compat.c (DE1 rejects HCI 0x0022).

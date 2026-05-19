@@ -6,8 +6,12 @@
 #include "deui_ble_client.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "nvs.h"
 
 static const char *TAG = "deui_wstop";
+
+#define DEUI_STOP_NVS_NAMESPACE "deui"
+#define DEUI_STOP_NVS_KEY "stop_at_g"
 
 enum {
   k_minor_state_pour = 0x05u,
@@ -19,8 +23,9 @@ typedef struct {
   int64_t t_us;
 } weight_point_t;
 
-/** v1 fixed constants (no user settings yet). */
-static const float k_target_weight_g = 40.0f;
+static float s_target_weight_g = DEUI_WEIGHT_STOP_DEFAULT_G;
+/** Last non-zero target kept when stop-at-weight is disabled (portal / UI restore). */
+static float s_stored_target_when_disabled = DEUI_WEIGHT_STOP_DEFAULT_G;
 static const int64_t k_prediction_warmup_us = 1500000;
 static const int64_t k_flow_window_us = 3000000;
 static const float k_fallback_flow_g_s = 1.5f;
@@ -41,12 +46,104 @@ static void reset_shot_state(bool keep_stop_sent);
 static void append_weight_point(float weight_g, int64_t now_us);
 static void prune_history(int64_t now_us);
 static bool compute_flow(float *flow_g_s_out, float *confidence_out);
+static void load_target_from_nvs(void);
+static esp_err_t save_target_to_nvs(float grams);
+
+static void load_target_from_nvs(void) {
+  nvs_handle_t nvs;
+  uint16_t grams_u16 = 0;
+
+  s_target_weight_g = DEUI_WEIGHT_STOP_DEFAULT_G;
+  if (nvs_open(DEUI_STOP_NVS_NAMESPACE, NVS_READONLY, &nvs) != ESP_OK) {
+    return;
+  }
+  if (nvs_get_u16(nvs, DEUI_STOP_NVS_KEY, &grams_u16) == ESP_OK) {
+    s_target_weight_g = (float)grams_u16;
+  }
+  nvs_close(nvs);
+}
+
+static esp_err_t save_target_to_nvs(float grams) {
+  nvs_handle_t nvs;
+  esp_err_t err;
+  uint16_t grams_u16 = (uint16_t)lroundf(grams);
+
+  err = nvs_open(DEUI_STOP_NVS_NAMESPACE, NVS_READWRITE, &nvs);
+  if (err != ESP_OK) {
+    return err;
+  }
+  err = nvs_set_u16(nvs, DEUI_STOP_NVS_KEY, grams_u16);
+  if (err == ESP_OK) {
+    err = nvs_commit(nvs);
+  }
+  nvs_close(nvs);
+  return err;
+}
 
 esp_err_t deui_weight_stop_init(void) {
   memset(&s_status, 0, sizeof(s_status));
-  s_status.target_weight_g = k_target_weight_g;
+  load_target_from_nvs();
+  s_status.target_weight_g = s_target_weight_g;
   s_initialized = true;
+  ESP_LOGI(TAG, "Stop-at-weight target: %.0f g%s", s_target_weight_g,
+           s_target_weight_g > 0.0f ? "" : " (disabled)");
   return ESP_OK;
+}
+
+bool deui_weight_stop_is_enabled(void) {
+  return s_target_weight_g > 0.0f;
+}
+
+esp_err_t deui_weight_stop_set_enabled(bool enabled) {
+  if (enabled) {
+    float grams = s_target_weight_g;
+    if (grams <= 0.0f) {
+      grams = s_stored_target_when_disabled > 0.0f ? s_stored_target_when_disabled
+                                                 : DEUI_WEIGHT_STOP_DEFAULT_G;
+    }
+    return deui_weight_stop_set_target_g(grams);
+  }
+
+  if (s_target_weight_g > 0.0f) {
+    s_stored_target_when_disabled = s_target_weight_g;
+  }
+  return deui_weight_stop_set_target_g(0.0f);
+}
+
+float deui_weight_stop_get_target_g(void) {
+  return s_target_weight_g;
+}
+
+esp_err_t deui_weight_stop_set_target_g(float grams) {
+  if (grams < 0.0f) {
+    grams = 0.0f;
+  } else if (grams > DEUI_WEIGHT_STOP_MAX_G) {
+    grams = DEUI_WEIGHT_STOP_MAX_G;
+  }
+
+  s_target_weight_g = grams;
+  s_status.target_weight_g = grams;
+  if (grams > 0.0f) {
+    s_stored_target_when_disabled = grams;
+  }
+  esp_err_t err = save_target_to_nvs(grams);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to save stop-at-weight: %s", esp_err_to_name(err));
+    return err;
+  }
+  ESP_LOGI(TAG, "Stop-at-weight set to %.0f g", grams);
+  return ESP_OK;
+}
+
+float deui_weight_stop_adjust_target_g(int delta_g) {
+  float next = s_target_weight_g + (float)delta_g;
+  if (next < 0.0f) {
+    next = 0.0f;
+  } else if (next > DEUI_WEIGHT_STOP_MAX_G) {
+    next = DEUI_WEIGHT_STOP_MAX_G;
+  }
+  (void)deui_weight_stop_set_target_g(next);
+  return next;
 }
 
 void deui_weight_stop_get_status(deui_weight_stop_status_t *status) {
@@ -58,7 +155,7 @@ void deui_weight_stop_get_status(deui_weight_stop_status_t *status) {
 
 void deui_weight_stop_tick(bool de1_connected, uint8_t major_state, uint8_t minor_state,
                            bool scale_connected, bool has_weight, float weight_g) {
-  if (!s_initialized) {
+  if (!s_initialized || s_target_weight_g <= 0.0f) {
     return;
   }
 
@@ -82,7 +179,7 @@ void deui_weight_stop_tick(bool de1_connected, uint8_t major_state, uint8_t mino
     reset_shot_state(false);
     s_status.shot_active = true;
     s_status.stop_sent = false;
-    ESP_LOGI(TAG, "Shot phase started; predictive stop armed (target=%.1fg)", k_target_weight_g);
+    ESP_LOGI(TAG, "Shot phase started; predictive stop armed (target=%.1fg)", s_target_weight_g);
   }
 
   if (!scale_connected || !has_weight) {
@@ -104,7 +201,7 @@ void deui_weight_stop_tick(bool de1_connected, uint8_t major_state, uint8_t mino
     effective_flow = flow_g_s;
   }
 
-  float weight_remaining = k_target_weight_g - weight_g;
+  float weight_remaining = s_target_weight_g - weight_g;
   if (weight_remaining <= 0.0f) {
     weight_remaining = 0.0f;
   }
@@ -116,7 +213,7 @@ void deui_weight_stop_tick(bool de1_connected, uint8_t major_state, uint8_t mino
 
   float predicted_overrun = effective_flow * k_base_stop_delay_s * safety_margin;
   float stop_threshold = predicted_overrun;
-  float target_margin_floor = k_target_weight_g * 0.08f;
+  float target_margin_floor = s_target_weight_g * 0.08f;
   if (stop_threshold < target_margin_floor) {
     stop_threshold = target_margin_floor;
   }
@@ -135,7 +232,7 @@ void deui_weight_stop_tick(bool de1_connected, uint8_t major_state, uint8_t mino
     s_status.stop_sent = true;
     ESP_LOGI(TAG,
              "Predictive stop sent at %.2fg (target %.1fg, flow %.2fg/s, conf %.2f, pred_final %.2fg)",
-             weight_g, k_target_weight_g, effective_flow, confidence,
+             weight_g, s_target_weight_g, effective_flow, confidence,
              s_status.last_predicted_final_weight_g);
   } else {
     ESP_LOGW(TAG, "Predictive stop trigger hit but write failed rc=%s", esp_err_to_name(stop_rc));

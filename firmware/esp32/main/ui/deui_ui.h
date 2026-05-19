@@ -16,6 +16,7 @@ typedef struct {
 
   /** Peer / status line (e.g. DE1 name); shown when useful. */
   char ble_footer[160];
+  char wifi_footer[160];
 
   /**
    * Center label on the idle layout (Waiting..., Idle, Ready, …).

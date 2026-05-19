@@ -21,7 +21,7 @@
 #include "deui_ui.h"
 #include "deui_weight_stop.h"
 #include "input.h"
-#include "wifi_setup.h"
+#include "deui_wifi.h"
 
 static const char *TAG = "deui_main";
 enum {
@@ -91,7 +91,6 @@ void app_main(void) {
   bool shot_timer_armed = false;
   int64_t shot_timer_start_us = 0;
   uint32_t previous_power_version = 0;
-
   ESP_LOGI(TAG, "DEUI firmware starting (ST77916 + CST816)");
   log_wakeup_reason();
 
@@ -99,10 +98,13 @@ void app_main(void) {
   ESP_ERROR_CHECK(lm_ctrl_backlight_init());
   ESP_ERROR_CHECK(lm_ctrl_backlight_on());
   ESP_ERROR_CHECK(lm_ctrl_power_init());
+  ESP_ERROR_CHECK(deui_weight_stop_init());
   ESP_ERROR_CHECK(deui_wifi_init());
+  if (deui_wifi_is_provisioning()) {
+    ESP_LOGI(TAG, "Wi-Fi setup AP active; BLE primary (Wi-Fi boosted only during phone join)");
+  }
   ESP_ERROR_CHECK(deui_ble_init());
   ESP_ERROR_CHECK(deui_scale_init());
-  ESP_ERROR_CHECK(deui_weight_stop_init());
   ESP_ERROR_CHECK(lm_ctrl_input_init(input_queue));
   if (lm_ctrl_leds_init() != ESP_OK) {
     ESP_LOGW(TAG, "LED ring unavailable");
@@ -164,7 +166,7 @@ void app_main(void) {
     deui_ble_get_status(&ble_pre_status);
 
     if (power_state != DEUI_POWER_POLICY_SLEEP) {
-      deui_scale_tick(ble_pre_status.connected);
+      deui_scale_tick(ble_pre_status.connected && !deui_wifi_block_ble_scan());
     }
     deui_scale_status_t scale_status = {0};
     deui_scale_get_status(&scale_status);
@@ -218,6 +220,7 @@ void app_main(void) {
 
     strncpy(ui_status.ble_footer, ble_status.detail_line, sizeof(ui_status.ble_footer) - 1);
     ui_status.ble_footer[sizeof(ui_status.ble_footer) - 1] = '\0';
+    ui_status.wifi_footer[0] = '\0';
 
     strncpy(ui_status.machine_state_center, ble_status.machine_state_label,
             sizeof(ui_status.machine_state_center) - 1);

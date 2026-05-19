@@ -7,23 +7,22 @@ This guide documents the v1 local setup flow for the DEUI controller.
 - DEUI branding only
 - no cloud login in v1
 - no portal authentication in v1
-- local captive portal for Wi-Fi onboarding
+- local setup AP with mDNS (no captive portal popup)
 
 ## First boot behavior
 
 1. Controller starts setup AP automatically.
 2. AP SSID is `DEUI-XXXX`.
-3. On-device setup page shows AP credentials and portal URL.
-4. Join the AP and open `http://192.168.4.1/`.
-5. If captive auto-open fails, open `http://192.168.4.1/` manually.
+3. AP password is `deui-setup`.
+4. Join the AP from your phone or computer.
+5. Open **http://deui.local/** in the browser (or **http://192.168.4.1/** if mDNS is unavailable).
+6. Use **Wi-Fi** to save your home network; use **Stop at weight** for the shot target.
 
 ## Portal features (v1)
 
-- Wi-Fi scan
-- save home SSID/password
-- optional hostname update
-- network reset
-- factory reset
+- Wi-Fi scan and save home SSID/password
+- stop-at-weight target (grams)
+- network reset (on the Wi-Fi screen)
 
 Not included in v1:
 
@@ -31,6 +30,7 @@ Not included in v1:
 - recipes editor
 - OTA portal
 - diagnostics console
+- hostname editing on the portal (fixed to `deui` / `deui.local`)
 
 ## Connectivity indicators
 

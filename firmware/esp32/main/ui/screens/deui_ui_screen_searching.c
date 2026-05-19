@@ -15,4 +15,7 @@ void deui_ui_screen_apply_searching(void) {
   deui_ui_label_set_static_if_changed(deui_ui_obj_machine_state, "Searching");
   lv_obj_clear_flag(deui_ui_obj_machine_state, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(deui_ui_obj_machine_state);
+  if (deui_ui_obj_footer != NULL) {
+    lv_obj_add_flag(deui_ui_obj_footer, LV_OBJ_FLAG_HIDDEN);
+  }
 }
