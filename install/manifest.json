@@ -1,0 +1,16 @@
+{
+  "name": "DEUI Nano",
+  "version": "1.0.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "firmware/deui_nano-full-flash-v1.0.0.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

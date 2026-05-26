@@ -1,0 +1,128 @@
+name: Firmware Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: firmware-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse version from tag
+        id: version
+        run: |
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32s3
+
+      - name: Build firmware
+        working-directory: firmware/esp32
+        run: |
+          idf.py set-target esp32s3
+          idf.py -DPROJECT_VER=${{ steps.version.outputs.version }} build
+
+      - name: Package binaries
+        id: artifacts
+        working-directory: firmware/esp32
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          OTA_NAME="deui_nano-esp32s3-v${VERSION}.bin"
+          FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
+          mkdir -p ../release ../../install/firmware
+          cp build/deui_nano.bin "../release/${OTA_NAME}"
+          OTA_SHA256=$(sha256sum -b "../release/${OTA_NAME}" | awk '{print $1}')
+          python "$IDF_PATH/components/esptool_py/esptool/esptool.py" \
+            --chip esp32s3 merge_bin \
+            -o "../../install/firmware/${FULL_NAME}" \
+            @build/flash_args
+          OTA_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${OTA_NAME}"
+          echo "ota_name=${OTA_NAME}" >> "$GITHUB_OUTPUT"
+          echo "full_name=${FULL_NAME}" >> "$GITHUB_OUTPUT"
+          echo "ota_sha256=${OTA_SHA256}" >> "$GITHUB_OUTPUT"
+          echo "ota_url=${OTA_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Update manifests
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          OTA_URL: ${{ steps.artifacts.outputs.ota_url }}
+          OTA_SHA256: ${{ steps.artifacts.outputs.ota_sha256 }}
+          FULL_NAME: ${{ steps.artifacts.outputs.full_name }}
+        run: |
+          python3 <<'PY'
+          import json, os
+          version = os.environ["VERSION"]
+          ota_url = os.environ["OTA_URL"]
+          ota_sha256 = os.environ["OTA_SHA256"]
+          full_name = os.environ["FULL_NAME"]
+          ota_manifest = {
+              "product": "deui_nano",
+              "target": "esp32s3",
+              "version": version,
+              "url": ota_url,
+              "sha256": ota_sha256,
+              "notes": f"Release {version}",
+          }
+          with open("firmware/esp32/ota/manifest.json", "w") as f:
+              json.dump(ota_manifest, f, indent=2)
+              f.write("\n")
+          install_manifest = {
+              "name": "DEUI Nano",
+              "version": version,
+              "new_install_prompt_erase": True,
+              "builds": [{
+                  "chipFamily": "ESP32-S3",
+                  "parts": [{"path": f"firmware/{full_name}", "offset": 0}],
+              }],
+          }
+          with open("install/manifest.json", "w") as f:
+              json.dump(install_manifest, f, indent=2)
+              f.write("\n")
+          PY
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: firmware/release/${{ steps.artifacts.outputs.ota_name }}
+          generate_release_notes: true
+
+      - name: Commit manifest updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firmware/esp32/ota/manifest.json install/manifest.json install/firmware/
+          if git diff --staged --quiet; then
+            echo "No manifest changes to commit"
+          else
+            git commit -m "chore(release): update manifests for ${{ steps.version.outputs.tag }}"
+            git push origin HEAD:main || true
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: install
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

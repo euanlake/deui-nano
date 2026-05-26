@@ -1,0 +1,16 @@
+menu "DEUI Nano OTA"
+
+config DEUI_OTA_ENABLE
+    bool "Enable over-the-air firmware updates"
+    default y
+    help
+        When disabled, OTA checks and portal update actions are no-ops.
+
+config DEUI_OTA_MANIFEST_URL
+    string "OTA manifest URL (HTTPS JSON)"
+    default "https://raw.githubusercontent.com/euanlake/deui-nano-testing/main/firmware/esp32/ota/manifest.json"
+    depends on DEUI_OTA_ENABLE
+    help
+        Stable URL for the version manifest. CI updates this file on each release.
+
+endmenu

@@ -1,5 +1,6 @@
 #include "deui_wifi_portal_html.h"
 
+#include "deui_ota.h"
 #include "deui_wifi_internal.h"
 #include "deui_weight_stop.h"
 
@@ -227,6 +228,72 @@ static const char PORTAL_WEIGHT_JS[] =
     "}catch(e){}}"
     "</script>";
 
+static const char PORTAL_OTA_JS[] =
+    "<script>"
+    "function setOtaCard(phase){"
+    "var card=document.getElementById('otaCard');"
+    "if(!card){return;}"
+    "card.classList.remove('connect-card--success','connect-card--failed');"
+    "if(phase==='up_to_date'){card.classList.add('connect-card--success');}"
+    "if(phase==='failed'||phase==='no_internet'){card.classList.add('connect-card--failed');}}"
+    "function renderOtaStatus(j){"
+    "var card=document.getElementById('otaCard');"
+    "var status=document.getElementById('otaStatus');"
+    "var detail=document.getElementById('otaDetail');"
+    "var btn=document.getElementById('otaCheckBtn');"
+    "if(!status||!detail||!card){return;}"
+    "var phase=j.phase||'idle';"
+    "if(phase==='checking'||phase==='downloading'||phase==='updating'){"
+    "status.textContent=phase==='checking'?'Checking for updates…':'Installing update. Device will restart…';"
+    "detail.textContent=j.message||'';"
+    "setOtaCard('checking');"
+    "if(btn){btn.disabled=true;}"
+    "return;}"
+    "if(phase==='up_to_date'){"
+    "status.textContent=\"You're on the latest version.\";"
+    "detail.textContent=j.message||'';"
+    "setOtaCard('up_to_date');"
+    "if(btn){btn.disabled=false;}"
+    "return;}"
+    "if(phase==='no_internet'){"
+    "status.textContent='Connect to home Wi-Fi first';"
+    "detail.textContent=j.message||'Connect to home Wi-Fi to check for updates.';"
+    "setOtaCard('no_internet');"
+    "if(btn){btn.disabled=false;}"
+    "return;}"
+    "if(phase==='failed'){"
+    "status.textContent='Update check failed';"
+    "detail.textContent=j.message||'Try again later.';"
+    "setOtaCard('failed');"
+    "if(btn){btn.disabled=false;}"
+    "return;}"
+    "status.textContent='Ready';"
+    "detail.textContent='Tap Check for updates when connected to home Wi-Fi.';"
+    "setOtaCard('idle');"
+    "if(btn){btn.disabled=false;}}"
+    "var otaPollTimer=0;"
+    "async function pollOtaStatus(){"
+    "try{"
+    "var r=await fetch('/api/ota-status');"
+    "if(!r.ok){return;}"
+    "var j=await r.json();"
+    "renderOtaStatus(j);"
+    "if(j.phase==='up_to_date'||j.phase==='failed'||j.phase==='no_internet'||j.phase==='idle'){"
+    "if(otaPollTimer){clearInterval(otaPollTimer);otaPollTimer=0;}}"
+    "}catch(e){}}"
+    "async function startOtaCheck(){"
+    "var btn=document.getElementById('otaCheckBtn');"
+    "if(btn){btn.disabled=true;}"
+    "renderOtaStatus({phase:'checking',message:'Checking for updates…'});"
+    "try{"
+    "var r=await fetch('/api/ota-check',{method:'POST'});"
+    "if(!r.ok){renderOtaStatus({phase:'failed',message:'Update check failed. Try again later.'});return;}"
+    "if(otaPollTimer){clearInterval(otaPollTimer);}"
+    "otaPollTimer=setInterval(pollOtaStatus,1000);"
+    "pollOtaStatus();"
+    "}catch(e){renderOtaStatus({phase:'failed',message:'Update check failed. Try again later.'});}}"
+    "</script>";
+
 static esp_err_t portal_send_page_header(httpd_req_t *req, const char *page_title) {
   esp_err_t err = httpd_resp_sendstr_chunk(req, "<header class='page-top'>");
   if (err != ESP_OK) {
@@ -422,6 +489,20 @@ esp_err_t deui_wifi_portal_send_home(httpd_req_t *req) {
   if (err != ESP_OK) {
     return err;
   }
+  err = httpd_resp_sendstr_chunk(req, "</a>");
+  if (err != ESP_OK) {
+    return err;
+  }
+  err = httpd_resp_sendstr_chunk(req,
+                                 "<a class='menu-nav-btn' href='/updates'>"
+                                 "<span class='menu-nav-btn__label'>SOFTWARE UPDATE</span>");
+  if (err != ESP_OK) {
+    return err;
+  }
+  err = httpd_resp_sendstr_chunk(req, PORTAL_MENU_CHEVRON_SVG);
+  if (err != ESP_OK) {
+    return err;
+  }
   err = httpd_resp_sendstr_chunk(req, "</a></nav>");
   if (err != ESP_OK) {
     return err;
@@ -597,6 +678,43 @@ esp_err_t deui_wifi_portal_send_message(httpd_req_t *req, const char *title, con
     return err;
   }
   err = httpd_resp_sendstr_chunk(req, "<a class='back' href='/'>Back to menu</a>");
+  if (err != ESP_OK) {
+    return err;
+  }
+  return portal_end(req);
+}
+
+esp_err_t deui_wifi_portal_send_updates(httpd_req_t *req) {
+  char body[1024];
+  char version_esc[48];
+  esp_err_t err;
+
+  html_escape(deui_ota_get_current_version(), version_esc, sizeof(version_esc));
+
+  err = portal_begin(req, "SOFTWARE UPDATE — DEUI", "Software Update", true);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  (void)snprintf(
+      body, sizeof(body),
+      "<p class='page-heading'>Current version</p>"
+      "<div class='card'><p style='margin:0;font-size:1.25rem;font-weight:500;color:var(--text);'>%s</p></div>"
+      "<button class='btn' type='button' id='otaCheckBtn' onclick='startOtaCheck()'>Check for updates</button>"
+      "<div class='connect-card' id='otaCard' style='margin-top:1rem;'>"
+      "<div class='connect-body'>"
+      "<div class='connect-spinner' id='otaSpinner' aria-hidden='true'></div>"
+      "<div class='connect-copy'>"
+      "<p class='connect-status' id='otaStatus'>Ready</p>"
+      "<p class='connect-detail' id='otaDetail'>Tap Check for updates when connected to home Wi-Fi.</p>"
+      "</div></div></div>",
+      version_esc);
+
+  err = httpd_resp_sendstr_chunk(req, body);
+  if (err != ESP_OK) {
+    return err;
+  }
+  err = httpd_resp_sendstr_chunk(req, PORTAL_OTA_JS);
   if (err != ESP_OK) {
     return err;
   }

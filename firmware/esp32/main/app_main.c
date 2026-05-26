@@ -15,6 +15,7 @@
 #include "board_leds.h"
 #include "board_power.h"
 #include "deui_ble_client.h"
+#include "deui_ota.h"
 #include "deui_power_policy.h"
 #include "deui_scale_client.h"
 #include "deui_shot_metrics.h"
@@ -100,6 +101,7 @@ void app_main(void) {
   ESP_ERROR_CHECK(lm_ctrl_power_init());
   ESP_ERROR_CHECK(deui_weight_stop_init());
   ESP_ERROR_CHECK(deui_wifi_init());
+  ESP_ERROR_CHECK(deui_ota_init());
   if (deui_wifi_is_provisioning()) {
     ESP_LOGI(TAG, "Wi-Fi setup AP active; BLE primary (Wi-Fi boosted only during phone join)");
   }
@@ -152,12 +154,19 @@ void app_main(void) {
     const deui_power_policy_state_t next_power_state = deui_power_policy_step(&power_policy, now_us);
     if (next_power_state != power_state) {
       if (next_power_state == DEUI_POWER_POLICY_SLEEP) {
-        enter_idle_deep_sleep();
+        if (!deui_ota_checked_this_boot() && !deui_ota_is_active()) {
+          (void)deui_ota_try_check_and_update(DEUI_OTA_TRIGGER_AUTO_SLEEP);
+        }
+        if (!deui_ota_is_active()) {
+          enter_idle_deep_sleep();
+        }
       } else {
         (void)lm_ctrl_backlight_set(DEUI_POWER_ACTIVE_BRIGHTNESS_PERCENT);
       }
       power_state = next_power_state;
     }
+
+    deui_ota_tick(now_us);
 
     if (power_state != DEUI_POWER_POLICY_SLEEP) {
       deui_ble_tick();

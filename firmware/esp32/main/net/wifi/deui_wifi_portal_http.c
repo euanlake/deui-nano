@@ -2,6 +2,8 @@
 #include "deui_wifi_portal_assets.h"
 #include "deui_wifi_portal_fonts.h"
 #include "deui_wifi_portal_html.h"
+#include "deui_wifi.h"
+#include "deui_ota.h"
 #include "deui_weight_stop.h"
 
 #include <ctype.h>
@@ -173,6 +175,30 @@ static esp_err_t handle_weight_get(httpd_req_t *req) {
   return deui_wifi_portal_send_weight(req);
 }
 
+static esp_err_t handle_updates_get(httpd_req_t *req) {
+  return deui_wifi_portal_send_updates(req);
+}
+
+static esp_err_t handle_ota_check_post(httpd_req_t *req) {
+  esp_err_t err = deui_ota_start_portal_check();
+  if (err == ESP_ERR_INVALID_STATE) {
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, "{\"started\":false,\"reason\":\"busy\"}", HTTPD_RESP_USE_STRLEN);
+  }
+  if (err != ESP_OK) {
+    return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to start update check");
+  }
+  httpd_resp_set_type(req, "application/json");
+  return httpd_resp_send(req, "{\"started\":true}", HTTPD_RESP_USE_STRLEN);
+}
+
+static esp_err_t handle_ota_status_get(httpd_req_t *req) {
+  char resp[384];
+  deui_ota_write_status_json(resp, sizeof(resp));
+  httpd_resp_set_type(req, "application/json");
+  return httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
+}
+
 static esp_err_t handle_save_post(httpd_req_t *req) {
   char body[256] = {0};
   char ssid[33] = {0};
@@ -281,6 +307,7 @@ esp_err_t deui_wifi_portal_register_handlers(httpd_handle_t server) {
   const httpd_uri_t favicon = {.uri = "/favicon.ico", .method = HTTP_GET, .handler = handle_favicon_get};
   const httpd_uri_t wifi = {.uri = "/wifi", .method = HTTP_GET, .handler = handle_wifi_get};
   const httpd_uri_t weight = {.uri = "/weight", .method = HTTP_GET, .handler = handle_weight_get};
+  const httpd_uri_t updates = {.uri = "/updates", .method = HTTP_GET, .handler = handle_updates_get};
   const httpd_uri_t save = {.uri = "/save", .method = HTTP_POST, .handler = handle_save_post};
   const httpd_uri_t scan = {.uri = "/scan", .method = HTTP_GET, .handler = handle_scan_get};
   const httpd_uri_t reset = {.uri = "/reset", .method = HTTP_POST, .handler = handle_reset_post};
@@ -299,11 +326,22 @@ esp_err_t deui_wifi_portal_register_handlers(httpd_handle_t server) {
     .method = HTTP_GET,
     .handler = handle_wifi_status_get,
   };
+  const httpd_uri_t ota_check_post = {
+    .uri = "/api/ota-check",
+    .method = HTTP_POST,
+    .handler = handle_ota_check_post,
+  };
+  const httpd_uri_t ota_status_get = {
+    .uri = "/api/ota-status",
+    .method = HTTP_GET,
+    .handler = handle_ota_status_get,
+  };
 
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &root), TAG, "Register / failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &favicon), TAG, "Register /favicon.ico failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &wifi), TAG, "Register /wifi failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &weight), TAG, "Register /weight failed");
+  ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &updates), TAG, "Register /updates failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &save), TAG, "Register /save failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &scan), TAG, "Register /scan failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &reset), TAG, "Register /reset failed");
@@ -315,5 +353,9 @@ esp_err_t deui_wifi_portal_register_handlers(httpd_handle_t server) {
                       "Register POST /api/stop-weight failed");
   ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &wifi_status_get), TAG,
                       "Register GET /api/wifi-status failed");
+  ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &ota_check_post), TAG,
+                      "Register POST /api/ota-check failed");
+  ESP_RETURN_ON_ERROR(httpd_register_uri_handler(server, &ota_status_get), TAG,
+                      "Register GET /api/ota-status failed");
   return ESP_OK;
 }

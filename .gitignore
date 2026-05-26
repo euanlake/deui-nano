@@ -34,25 +34,32 @@ screenlog.*
 # --- ESP-IDF (firmware/esp32) ---
 firmware/esp32/build/
 firmware/esp32/managed_components/
+firmware/esp32/.cache/
 firmware/esp32/sdkconfig.old
 firmware/esp32/sdkconfig.ci
-firmware/esp32/.cache/
 firmware/esp32/dependencies.lock.bak
 
-# sdkconfig is usually committed; ignore only personal overrides
+# sdkconfig + sdkconfig.defaults are committed; ignore personal menuconfig overrides
 firmware/esp32/sdkconfig.user
 firmware/esp32/sdkconfig.local
+
+# --- Firmware release artifacts (CI → GitHub Releases) ---
+firmware/release/
+
+# --- GitHub Pages install bundles (CI → Pages; binaries are not stored in git) ---
+install/firmware/*.bin
 
 # --- Arduino / PlatformIO (legacy archived tree, if used) ---
 .pio/
 .pioenvs/
 .piolibdeps/
 archive/arduino-prototype/build/
+
+# Build / flash binary artifacts
 *.hex
 *.elf
 *.map
 *.bin
-!firmware/esp32/partitions.csv
 
 # Python
 __pycache__/
@@ -60,6 +67,7 @@ __pycache__/
 .Python
 .venv/
 venv/
+.pytest_cache/
 
 # Coverage / test output
 coverage/

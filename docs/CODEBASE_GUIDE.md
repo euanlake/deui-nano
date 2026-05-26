@@ -106,7 +106,7 @@ Protocol reference for characteristic semantics and state enums:
 ## 4) Build, flash, and tooling
 
 - Project root for firmware target: `firmware/esp32`
-- IDF project declaration: `firmware/esp32/CMakeLists.txt` (project name `deui_controller`)
+- IDF project declaration: `firmware/esp32/CMakeLists.txt` (project name `deui_nano`)
 - Primary developer script: `firmware/esp32/dev.sh`
   - `full`: full flash + monitor (first flash / partition changes)
   - `quick`: app-flash + monitor (iterative loop)
