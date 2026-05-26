@@ -14,7 +14,7 @@ typedef struct {
   bool scale_scanning;
   lm_ctrl_power_info_t power;
 
-  /** Peer / status line (e.g. DE1 name); shown when useful. */
+  /** Peer / status line while disconnected (e.g. Wi-Fi setup); hidden when BLE is connected. */
   char ble_footer[160];
   char wifi_footer[160];
 
