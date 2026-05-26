@@ -1,0 +1,2 @@
+# Full-flash images for ESP Web Tools; CI copies these here on release tags.
+*.bin

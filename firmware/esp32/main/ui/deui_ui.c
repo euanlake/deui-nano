@@ -485,7 +485,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_color(s_ble_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
   lv_obj_set_style_color_filter_opa(s_ble_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_text_align(s_ble_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -34, 133);
+  lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -34, 148);
 
   s_wifi_icon = lv_label_create(root);
   deui_ui_strip_default_theme(s_wifi_icon);
@@ -494,7 +494,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_color(s_wifi_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
   lv_obj_set_style_color_filter_opa(s_wifi_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_text_align(s_wifi_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(s_wifi_icon, LV_ALIGN_CENTER, 56, 133);
+  lv_obj_align(s_wifi_icon, LV_ALIGN_CENTER, 56, 148);
 
   s_scale_icon = lv_label_create(root);
   deui_ui_strip_default_theme(s_scale_icon);
@@ -504,8 +504,8 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_color(s_scale_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
   lv_obj_set_style_color_filter_opa(s_scale_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_text_align(s_scale_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(s_scale_icon, LV_ALIGN_CENTER, 0, 133);
-  lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -56, 133);
+  lv_obj_align(s_scale_icon, LV_ALIGN_CENTER, 0, 148);
+  lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -56, 148);
   deui_ui_pin_label_no_theme_recolor(s_ble_icon);
   deui_ui_pin_label_no_theme_recolor(s_wifi_icon);
   deui_ui_pin_label_no_theme_recolor(s_scale_icon);
@@ -665,10 +665,7 @@ void deui_ui_update_status(const deui_ui_status_t *status) {
   }
 
   if (deui_ui_obj_footer != NULL) {
-    if (status->ble_connected && status->ble_footer[0] != '\0') {
-      deui_ui_label_set_static_if_changed(deui_ui_obj_footer, status->ble_footer);
-      lv_obj_clear_flag(deui_ui_obj_footer, LV_OBJ_FLAG_HIDDEN);
-    } else if (!status->ble_connected && status->wifi_footer[0] != '\0') {
+    if (!status->ble_connected && status->wifi_footer[0] != '\0') {
       deui_ui_label_set_static_if_changed(deui_ui_obj_footer, status->wifi_footer);
       lv_obj_clear_flag(deui_ui_obj_footer, LV_OBJ_FLAG_HIDDEN);
     } else {

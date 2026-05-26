@@ -16,6 +16,7 @@ Primary target:
 Current firmware scope (v1) is centered on local controller operation:
 
 - local setup AP and captive portal for Wi-Fi onboarding
+- HTTPS OTA firmware updates (automatic + portal **Software Update**)
 - DE1-focused BLE integration path
 - LVGL-based UI with status + live metric rendering
 - hardware validation feedback for ring, LEDs, and haptics
@@ -28,7 +29,9 @@ Out of scope in v1:
 ## Repository layout
 
 - `firmware/esp32/`
-  - canonical ESP-IDF firmware project (`deui_controller`)
+  - canonical ESP-IDF firmware project (`deui_nano`)
+- `install/`
+  - GitHub Pages browser install page (ESP Web Tools)
 - `docs/`
   - operator and protocol docs
 - `docs/CODEBASE_GUIDE.md`
@@ -74,6 +77,10 @@ ESPPORT=/dev/cu.usbmodemXXXX ./dev.sh quick
 - Code structure and review map: `docs/CODEBASE_GUIDE.md`
 - Flashing workflow: `docs/controller/FLASHING_CONTROLLER.md`
 - Setup/onboarding flow: `docs/controller/SETUP_GUIDE.md`
+- OTA updates: `docs/controller/OTA.md`
+- Browser install: `https://euanlake.github.io/deui-nano-testing/`
+- OTA updates: `docs/controller/OTA.md`
+- Browser install: https://euanlake.github.io/deui-nano-testing/
 - DE1 BLE protocol context: `docs/de1-bluetooth-protocol.md`
 - Touch debugging handoff notes: `docs/touch-controller-debug-handoff.md`
 

@@ -9,7 +9,17 @@ This guide covers flashing `firmware/esp32` onto the DEUI ST77916/CST816 control
 - USB data cable
 - controller connected over USB
 
-## macOS / Linux
+## Browser install (DIY, no ESP-IDF)
+
+For a one-time USB flash in Chrome or Edge:
+
+**https://euanlake.github.io/deui-nano-testing/**
+
+Uses ESP Web Tools with a merged full-flash image (bootloader + partition table + OTA slots + app). After install, configure Wi-Fi via the setup portal at **http://deui.local/**.
+
+See [../install/README.md](../../install/README.md).
+
+## macOS / Linux (ESP-IDF)
 
 Install ESP-IDF once:
 
@@ -29,7 +39,7 @@ cd firmware/esp32
 
 `full` performs target selection, build, full flash, and monitor.
 
-For regular app updates:
+For regular OTA-capable app updates (after initial full flash with dual OTA partitions):
 
 ```bash
 source ~/esp/esp-idf/export.sh
@@ -55,10 +65,22 @@ idf.py set-target esp32s3
 idf.py build flash monitor
 ```
 
+## Partition migration (OTA)
+
+Firmware v1.0+ uses dual OTA slots (`ota_0` / `ota_1`) instead of a single `factory` app partition.
+
+**If `partitions.csv` changed, run a full flash before using `app-flash`:**
+
+```bash
+./dev.sh full
+```
+
+Units on the old `factory` layout cannot receive OTA updates until re-flashed once with the OTA partition table. See [OTA.md](OTA.md).
+
 ## Notes
 
-- If `partitions.csv` changes, run a full flash before using `app-flash`.
-- Firmware target is ST77916 QSPI + CST816 only.
+- IDF project name: `deui_nano` (build output: `build/deui_nano.bin`)
+- Firmware target is ST77916 QSPI + CST816 only (ESP32-S3)
 
 ## Waveshare ESP32-S3-Knob-Touch-LCD-1.8
 

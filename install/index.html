@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#000000" />
+    <title>Install DEUI Nano</title>
+    <link rel="icon" href="assets/deui-logo.png" type="image/png" />
+    <style>
+      @font-face {
+        font-family: "Lab Grotesque";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("fonts/LabGrotesque-Regular.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Lab Grotesque";
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url("fonts/LabGrotesque-Medium.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Lab Grotesque";
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url("fonts/LabGrotesque-Bold.woff2") format("woff2");
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+      html {
+        font-family: "Lab Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #000000;
+        color: #ebe8e8;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+        font-weight: 500;
+        font-size: 1.125rem;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 28rem;
+        margin: 0 auto;
+      }
+      .logo {
+        display: block;
+        width: 48px;
+        height: 48px;
+        object-fit: contain;
+      }
+      h1 {
+        margin: 1rem 0 0.5rem;
+        font-size: 1.75rem;
+        font-weight: 500;
+      }
+      .lead {
+        margin: 0 0 1.5rem;
+        color: #757575;
+        font-size: 1rem;
+      }
+      .install-shell {
+        margin: 1.5rem 0;
+      }
+      esp-web-install-button {
+        --esp-web-install-button-color: #272727;
+        --esp-web-install-button-text-color: #ebe8e8;
+      }
+      .footnote {
+        margin-top: 1.5rem;
+        font-size: 0.875rem;
+        line-height: 1.45;
+        color: #757575;
+      }
+      a {
+        color: #3f9cf2;
+      }
+      footer {
+        margin-top: 2rem;
+        font-size: 0.875rem;
+        color: #757575;
+      }
+    </style>
+    <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  </head>
+  <body>
+    <div class="wrap">
+      <img class="logo" src="assets/deui-logo.png" width="48" height="48" alt="DEUI" />
+      <h1>Install DEUI Nano firmware</h1>
+      <p class="lead">Connect your controller via USB. Use Chrome or Edge.</p>
+      <div class="install-shell">
+        <esp-web-install-button manifest="manifest.json">Install</esp-web-install-button>
+      </div>
+      <p class="footnote">
+        Waveshare Knob 1.8 boards expose two USB serial ports depending on cable orientation — select the
+        <strong>ESP32-S3</strong> port. See
+        <a href="https://github.com/euanlake/deui-nano-testing/blob/main/docs/controller/FLASHING_CONTROLLER.md"
+          >flashing docs</a
+        >
+        for details.
+      </p>
+      <footer>
+        Version <span id="version">1.0.0</span> ·
+        <a href="https://github.com/euanlake/deui-nano-testing/releases">GitHub Releases</a>
+      </footer>
+    </div>
+    <script>
+      fetch("manifest.json")
+        .then((r) => r.json())
+        .then((j) => {
+          if (j.version) {
+            document.getElementById("version").textContent = j.version;
+          }
+        })
+        .catch(() => {});
+    </script>
+  </body>
+</html>

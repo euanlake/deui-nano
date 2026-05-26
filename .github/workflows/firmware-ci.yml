@@ -1,0 +1,43 @@
+name: Firmware CI
+
+on:
+  pull_request:
+    paths:
+      - "firmware/esp32/**"
+      - ".github/workflows/firmware-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "firmware/esp32/**"
+      - ".github/workflows/firmware-ci.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ESP-IDF
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32s3
+
+      - name: Build firmware
+        working-directory: firmware/esp32
+        run: |
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Check OTA partition size
+        working-directory: firmware/esp32
+        run: |
+          BIN="build/deui_nano.bin"
+          MAX=$((0x300000))
+          SIZE=$(stat -c%s "$BIN")
+          echo "Binary size: $SIZE bytes (max $MAX)"
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "Binary exceeds OTA slot size (3MB)" >&2
+            exit 1
+          fi

@@ -58,12 +58,15 @@ idf_component_register(
     "net/wifi/deui_wifi_settings.c"
     "net/wifi/deui_wifi_sta.c"
     "net/wifi/deui_wifi_provision.c"
+    "net/ota/deui_ota.c"
+    "net/ota/deui_ota_policy.c"
   INCLUDE_DIRS
     "."
     "board"
     "input"
     "net"
     "net/wifi"
+    "net/ota"
     "ble"
     "brew"
     "power"
@@ -85,6 +88,11 @@ idf_component_register(
     esp_http_server
     esp_netif
     esp_wifi
+    app_update
+    esp_http_client
+    esp_https_ota
+    esp-tls
+    json
     nvs_flash
   EMBED_FILES
     "${PORTAL_FONT_GEN}/lab-regular.woff2"
