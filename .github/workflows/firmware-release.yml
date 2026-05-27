@@ -35,7 +35,18 @@ jobs:
           esp_idf_version: v5.5
           target: esp32s3
           path: firmware/esp32
-          command: idf.py set-target esp32s3 && idf.py -DPROJECT_VER=${{ steps.version.outputs.version }} build
+          command: |
+            idf.py set-target esp32s3
+            idf.py -DPROJECT_VER=${{ steps.version.outputs.version }} build
+            VERSION="${{ steps.version.outputs.version }}"
+            OTA_NAME="deui_nano-esp32s3-v${VERSION}.bin"
+            FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
+            mkdir -p ../release ../../install/firmware
+            cp build/deui_nano.bin "../release/${OTA_NAME}"
+            python "$IDF_PATH/components/esptool_py/esptool/esptool.py" \
+              --chip esp32s3 merge_bin \
+              -o "../../install/firmware/${FULL_NAME}" \
+              @build/flash_args
 
       - name: Package binaries
         id: artifacts
@@ -45,13 +56,7 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           OTA_NAME="deui_nano-esp32s3-v${VERSION}.bin"
           FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
-          mkdir -p ../release ../../install/firmware
-          cp build/deui_nano.bin "../release/${OTA_NAME}"
           OTA_SHA256=$(sha256sum -b "../release/${OTA_NAME}" | awk '{print $1}')
-          python "$IDF_PATH/components/esptool_py/esptool/esptool.py" \
-            --chip esp32s3 merge_bin \
-            -o "../../install/firmware/${FULL_NAME}" \
-            @build/flash_args
           OTA_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${OTA_NAME}"
           echo "ota_name=${OTA_NAME}" >> "$GITHUB_OUTPUT"
           echo "full_name=${FULL_NAME}" >> "$GITHUB_OUTPUT"
