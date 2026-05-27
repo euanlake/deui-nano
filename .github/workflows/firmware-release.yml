@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: firmware-release
@@ -37,14 +35,8 @@ jobs:
             idf.py -DPROJECT_VER=${{ steps.version.outputs.version }} build
             VERSION="${{ steps.version.outputs.version }}"
             OTA_NAME="deui_nano-esp32s3-v${VERSION}.bin"
-            FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
-            mkdir -p ../release ../../install/firmware
+            mkdir -p ../release
             cp build/deui_nano.bin "../release/${OTA_NAME}"
-            cd build
-            python "$IDF_PATH/components/esptool_py/esptool/esptool.py" \
-              --chip esp32s3 merge_bin \
-              --output "../../../install/firmware/${FULL_NAME}" \
-              @flash_args
 
       - name: Package binaries
         id: artifacts
@@ -53,16 +45,12 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ steps.version.outputs.tag }}"
           OTA_NAME="deui_nano-esp32s3-v${VERSION}.bin"
-          FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
           OTA_PATH="../release/${OTA_NAME}"
-          FULL_PATH="../../install/firmware/${FULL_NAME}"
 
-          for path in "$OTA_PATH" "$FULL_PATH"; do
-            if [ ! -f "$path" ]; then
-              echo "Missing artifact: $path" >&2
-              exit 1
-            fi
-          done
+          if [ ! -f "$OTA_PATH" ]; then
+            echo "Missing artifact: $OTA_PATH" >&2
+            exit 1
+          fi
 
           BIN_SIZE=$(stat -c%s "$OTA_PATH")
           MAX=$((0x300000))
@@ -75,23 +63,20 @@ jobs:
           OTA_SHA256=$(sha256sum -b "$OTA_PATH" | awk '{print $1}')
           OTA_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${OTA_NAME}"
           echo "ota_name=${OTA_NAME}" >> "$GITHUB_OUTPUT"
-          echo "full_name=${FULL_NAME}" >> "$GITHUB_OUTPUT"
           echo "ota_sha256=${OTA_SHA256}" >> "$GITHUB_OUTPUT"
           echo "ota_url=${OTA_URL}" >> "$GITHUB_OUTPUT"
 
-      - name: Update manifests
+      - name: Update OTA manifest
         env:
           VERSION: ${{ steps.version.outputs.version }}
           OTA_URL: ${{ steps.artifacts.outputs.ota_url }}
           OTA_SHA256: ${{ steps.artifacts.outputs.ota_sha256 }}
-          FULL_NAME: ${{ steps.artifacts.outputs.full_name }}
         run: |
           python3 <<'PY'
           import json, os
           version = os.environ["VERSION"]
           ota_url = os.environ["OTA_URL"]
           ota_sha256 = os.environ["OTA_SHA256"]
-          full_name = os.environ["FULL_NAME"]
           ota_manifest = {
               "product": "deui_nano",
               "target": "esp32s3",
@@ -109,7 +94,10 @@ jobs:
               "new_install_prompt_erase": True,
               "builds": [{
                   "chipFamily": "ESP32-S3",
-                  "parts": [{"path": f"firmware/{full_name}", "offset": 0}],
+                  "parts": [{
+                      "path": f"firmware/deui_nano-full-flash-v{version}.bin",
+                      "offset": 0,
+                  }],
               }],
           }
           with open("install/manifest.json", "w") as f:
@@ -127,41 +115,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git rebase origin/main
           git add firmware/esp32/ota/manifest.json install/manifest.json
           if git diff --staged --quiet; then
             echo "No manifest changes to commit"
-          else
-            git commit -m "chore(release): update manifests for ${{ steps.version.outputs.tag }}"
-            git push origin HEAD:main
+            exit 0
           fi
-
-      - name: Upload install bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: install-bundle
-          path: install
-          if-no-files-found: error
-
-  pages:
-    needs: release
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Download install bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: install-bundle
-          path: install
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: install
-
-      - name: Deploy GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+          git commit -m "chore(release): update manifests for ${{ steps.version.outputs.tag }}"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main

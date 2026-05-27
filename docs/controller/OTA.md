@@ -67,8 +67,9 @@ See [FLASHING_CONTROLLER.md](FLASHING_CONTROLLER.md) and [../install/README.md](
 ## Releasing firmware
 
 1. Bump `project(deui_nano VERSION x.y.z)` in `firmware/esp32/CMakeLists.txt`
-2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
-3. GitHub Actions builds, publishes the Release asset, updates manifests, and deploys the install page
+2. Push to `main` — CI builds and deploys the browser install page automatically
+3. For OTA distribution, tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
+4. The release workflow publishes the GitHub Release asset, updates OTA/install manifests on `main`, and CI redeploys Pages
 
 ## Troubleshooting
 

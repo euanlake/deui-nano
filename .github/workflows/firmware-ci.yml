@@ -4,13 +4,18 @@ on:
   pull_request:
     paths:
       - "firmware/esp32/**"
+      - "install/**"
       - ".github/workflows/firmware-ci.yml"
   push:
     branches:
       - main
     paths:
       - "firmware/esp32/**"
+      - "install/**"
       - ".github/workflows/firmware-ci.yml"
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -18,13 +23,43 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Parse firmware version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/^project(deui_nano VERSION \([^)]*\)).*/\1/p' firmware/esp32/CMakeLists.txt)
+          if [ -z "$VERSION" ]; then
+            echo "Could not parse project version from CMakeLists.txt" >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Build firmware
+        if: github.event_name == 'pull_request'
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5
           target: esp32s3
           path: firmware/esp32
           command: idf.py set-target esp32s3 && idf.py build
+
+      - name: Build firmware and install bundle
+        if: github.event_name == 'push'
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32s3
+          path: firmware/esp32
+          command: |
+            idf.py set-target esp32s3
+            idf.py build
+            VERSION="${{ steps.version.outputs.version }}"
+            FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
+            mkdir -p ../../install/firmware
+            cd build
+            python "$IDF_PATH/components/esptool_py/esptool/esptool.py" \
+              --chip esp32s3 merge_bin \
+              --output "../../../install/firmware/${FULL_NAME}" \
+              @flash_args
 
       - name: Check OTA partition size
         working-directory: firmware/esp32
@@ -37,3 +72,71 @@ jobs:
             echo "Binary exceeds OTA slot size (3MB)" >&2
             exit 1
           fi
+
+      - name: Update install manifest
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 <<'PY'
+          import json, os
+          version = os.environ["VERSION"]
+          full_name = f"deui_nano-full-flash-v{version}.bin"
+          install_manifest = {
+              "name": "DEUI Nano",
+              "version": version,
+              "new_install_prompt_erase": True,
+              "builds": [{
+                  "chipFamily": "ESP32-S3",
+                  "parts": [{"path": f"firmware/{full_name}", "offset": 0}],
+              }],
+          }
+          with open("install/manifest.json", "w") as f:
+              json.dump(install_manifest, f, indent=2)
+              f.write("\n")
+          PY
+
+      - name: Verify install bundle
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          FULL_PATH="install/firmware/deui_nano-full-flash-v${VERSION}.bin"
+          if [ ! -f "$FULL_PATH" ]; then
+            echo "Missing install bundle: $FULL_PATH" >&2
+            exit 1
+          fi
+
+      - name: Upload install bundle
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-bundle
+          path: install
+          if-no-files-found: error
+
+  pages:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download install bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: install-bundle
+          path: install
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: install
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
