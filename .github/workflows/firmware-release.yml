@@ -17,9 +17,6 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
 
@@ -43,10 +40,11 @@ jobs:
             FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
             mkdir -p ../release ../../install/firmware
             cp build/deui_nano.bin "../release/${OTA_NAME}"
+            cd build
             python "$IDF_PATH/components/esptool_py/esptool/esptool.py" \
               --chip esp32s3 merge_bin \
-              -o "../../install/firmware/${FULL_NAME}" \
-              @build/flash_args
+              --output "../../../install/firmware/${FULL_NAME}" \
+              @flash_args
 
       - name: Package binaries
         id: artifacts
@@ -56,7 +54,25 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           OTA_NAME="deui_nano-esp32s3-v${VERSION}.bin"
           FULL_NAME="deui_nano-full-flash-v${VERSION}.bin"
-          OTA_SHA256=$(sha256sum -b "../release/${OTA_NAME}" | awk '{print $1}')
+          OTA_PATH="../release/${OTA_NAME}"
+          FULL_PATH="../../install/firmware/${FULL_NAME}"
+
+          for path in "$OTA_PATH" "$FULL_PATH"; do
+            if [ ! -f "$path" ]; then
+              echo "Missing artifact: $path" >&2
+              exit 1
+            fi
+          done
+
+          BIN_SIZE=$(stat -c%s "$OTA_PATH")
+          MAX=$((0x300000))
+          echo "OTA binary size: $BIN_SIZE bytes (max $MAX)"
+          if [ "$BIN_SIZE" -gt "$MAX" ]; then
+            echo "Binary exceeds OTA slot size (3 MB)" >&2
+            exit 1
+          fi
+
+          OTA_SHA256=$(sha256sum -b "$OTA_PATH" | awk '{print $1}')
           OTA_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${OTA_NAME}"
           echo "ota_name=${OTA_NAME}" >> "$GITHUB_OUTPUT"
           echo "full_name=${FULL_NAME}" >> "$GITHUB_OUTPUT"
@@ -111,13 +127,35 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add firmware/esp32/ota/manifest.json install/manifest.json install/firmware/
+          git fetch origin main
+          git rebase origin/main
+          git add firmware/esp32/ota/manifest.json install/manifest.json
           if git diff --staged --quiet; then
             echo "No manifest changes to commit"
           else
             git commit -m "chore(release): update manifests for ${{ steps.version.outputs.tag }}"
-            git push origin HEAD:main || true
+            git push origin HEAD:main
           fi
+
+      - name: Upload install bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-bundle
+          path: install
+          if-no-files-found: error
+
+  pages:
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download install bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: install-bundle
+          path: install
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
