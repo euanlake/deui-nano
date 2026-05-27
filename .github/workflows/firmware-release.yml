@@ -21,7 +21,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Parse version from tag
         id: version
@@ -29,17 +29,13 @@ jobs:
           echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Setup ESP-IDF
+      - name: Build firmware
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5
           target: esp32s3
-
-      - name: Build firmware
-        working-directory: firmware/esp32
-        run: |
-          idf.py set-target esp32s3
-          idf.py -DPROJECT_VER=${{ steps.version.outputs.version }} build
+          path: firmware/esp32
+          command: idf.py set-target esp32s3 && idf.py -DPROJECT_VER=${{ steps.version.outputs.version }} build
 
       - name: Package binaries
         id: artifacts
@@ -101,7 +97,7 @@ jobs:
           PY
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: firmware/release/${{ steps.artifacts.outputs.ota_name }}
           generate_release_notes: true
@@ -119,10 +115,10 @@ jobs:
           fi
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: install
 
       - name: Deploy GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
