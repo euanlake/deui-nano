@@ -86,7 +86,7 @@ a {
   width: 100%;
   max-width: 1188px;
   margin-inline: auto;
-  padding-inline: 1.5rem;
+  padding-inline: 2.5rem;
 }
 
 @media (min-width: 768px) {
@@ -95,7 +95,7 @@ a {
   .mockup-inner,
   .cta-inner,
   .footer-inner {
-    padding-inline: 2rem;
+    padding-inline: 3.5rem;
   }
 }
 
@@ -122,6 +122,7 @@ header {
 .mobile-logo {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   text-decoration: none;
 }
 
@@ -147,6 +148,15 @@ header {
 
 .theme-image img {
   transition: opacity 75ms ease-out;
+}
+
+html:not(.dark) .theme-image__light {
+  opacity: 1;
+}
+
+html:not(.dark) .theme-image__dark {
+  opacity: 0;
+  pointer-events: none;
 }
 
 html.light .theme-image__light {
@@ -273,13 +283,13 @@ main {
   width: 100%;
   max-width: 1188px;
   margin-inline: auto;
-  padding: 2rem 1.5rem 0.75rem;
+  padding: 2rem 2.5rem 0.75rem;
   text-align: left;
 }
 
 @media (min-width: 768px) {
   .mobile-hero {
-    padding: 3rem 2rem 1rem;
+    padding: 3rem 3.5rem 1rem;
   }
 }
 
@@ -304,37 +314,31 @@ main {
   width: 100%;
   max-width: 1188px;
   margin-inline: auto;
-  padding: 0 1.5rem 1.5rem;
+  padding: 0 2.5rem 1rem;
 }
 
 @media (min-width: 768px) {
   .subheading-section {
-    padding: 0 2rem 2rem;
+    padding: 0 3.5rem 1.25rem;
   }
 }
 
 .install-subheading {
   margin: 0;
-  max-width: 36rem;
-  font-size: 1.375rem;
+  max-width: none;
+  font-size: 1rem;
   line-height: 1.5;
   font-weight: 500;
-  color: var(--foreground);
-}
-
-@media (min-width: 768px) {
-  .install-subheading {
-    font-size: 1.5rem;
-  }
+  color: var(--muted-foreground);
 }
 
 .mockup-section {
-  padding: 0 1.5rem 2rem;
+  padding: 0 2.5rem 2rem;
 }
 
 @media (min-width: 768px) {
   .mockup-section {
-    padding: 0 2rem 3rem;
+    padding: 0 3.5rem 3rem;
   }
 }
 
@@ -357,12 +361,12 @@ main {
 
 .mobile-cta {
   width: 100%;
-  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
 }
 
 @media (min-width: 768px) {
   .mobile-cta {
-    padding-top: 2rem;
+    padding-bottom: 2rem;
   }
 }
 
@@ -448,22 +452,81 @@ esp-web-install-button {
 }
 
 @media (max-width: 430px) {
-  .mobile-layout .mobile-hero h1 {
-    font-size: 24px;
-    line-height: 32px;
-    font-weight: 700;
+  .mobile-layout {
+    --mobile-header-padding: clamp(1rem, 12.2%, 3rem);
+    --mobile-header-top: clamp(4.5rem, 22vw, 5.5rem);
+    --mobile-logo-height: clamp(32px, 10vw, 40px);
+    --mobile-logo-width: clamp(26px, 8vw, 32.5px);
+    --mobile-toggle-width: 62px;
+    --mobile-toggle-height: 40px;
+    position: relative;
   }
 
-  .mobile-theme-toggle {
-    width: 62px;
-    height: 40px;
+  .mobile-layout header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    padding: 0;
+    padding-inline: var(--mobile-header-padding);
+  }
+
+  .mobile-layout .header-inner {
+    position: relative;
+    min-height: calc(var(--mobile-header-top) + var(--mobile-logo-height));
+    padding: 0;
+    max-width: none;
+  }
+
+  .mobile-layout .mobile-logo {
+    position: absolute;
+    top: var(--mobile-header-top);
+    left: 0;
+    width: var(--mobile-logo-width);
+    height: var(--mobile-logo-height);
+  }
+
+  .mobile-layout .logo-wrap {
+    width: var(--mobile-logo-width);
+    height: var(--mobile-logo-height);
+  }
+
+  .mobile-layout .logo-wrap img {
+    width: var(--mobile-logo-width);
+    height: var(--mobile-logo-height);
+    object-fit: contain;
+    object-position: left top;
+  }
+
+  .mobile-layout .mobile-theme-toggle {
+    position: absolute;
+    top: var(--mobile-header-top);
+    right: 0;
+    left: auto;
+    width: var(--mobile-toggle-width);
+    height: var(--mobile-toggle-height);
     overflow: hidden;
     flex-shrink: 0;
   }
 
-  .mobile-theme-toggle .theme-toggle {
+  .mobile-layout .mobile-theme-toggle .theme-toggle {
     transform: scale(0.7045, 0.7143);
     transform-origin: top right;
+  }
+
+  .mobile-layout main {
+    padding-top: calc(var(--mobile-header-top) + var(--mobile-logo-height));
+  }
+
+  .mobile-layout .mobile-hero {
+    padding-top: 0;
+  }
+
+  .mobile-layout .mobile-hero h1 {
+    font-size: 24px;
+    line-height: 32px;
+    font-weight: 700;
   }
 }
 

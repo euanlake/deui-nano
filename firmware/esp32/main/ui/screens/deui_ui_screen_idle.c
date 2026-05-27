@@ -7,9 +7,6 @@
 
 LV_FONT_DECLARE(LabGrotesque_Bold_24);
 
-/** Gap below the metrics capsule before the idle headline (Ready, Heating, …). */
-enum { k_idle_headline_below_metrics_gap = 8 };
-
 void deui_ui_screen_apply_idle(const char *machine_state_center, bool show_saved_metrics) {
   (void)show_saved_metrics;
 

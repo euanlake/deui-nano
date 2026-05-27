@@ -124,16 +124,16 @@ static void style_shot_arcs_from_theme(const deui_theme_palette_t *theme) {
 
 static void apply_metric_labels(bool live) {
   if (s_weight_label != NULL) {
-    deui_ui_label_set_static_if_changed(s_weight_label, live ? "WEIGHT (G)" : "MAX WEIGHT (G)");
+    deui_ui_label_set_static_if_changed(s_weight_label, live ? "WEIGHT" : "MAX WEIGHT");
   }
   if (s_time_label != NULL) {
-    deui_ui_label_set_static_if_changed(s_time_label, live ? "TIME (S)" : "MAX TIME (S)");
+    deui_ui_label_set_static_if_changed(s_time_label, live ? "TIME" : "MAX TIME");
   }
   if (s_pressure_label != NULL) {
-    deui_ui_label_set_static_if_changed(s_pressure_label, live ? "PRESS (BAR)" : "MAX PRESS (BAR)");
+    deui_ui_label_set_static_if_changed(s_pressure_label, live ? "PRESS" : "MAX PRESS");
   }
   if (s_flow_label != NULL) {
-    deui_ui_label_set_static_if_changed(s_flow_label, live ? "FLOW (ML/S)" : "MAX FLOW (ML/S)");
+    deui_ui_label_set_static_if_changed(s_flow_label, live ? "FLOW" : "MAX FLOW");
   }
 }
 
@@ -429,7 +429,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_clear_flag(deui_ui_obj_metrics_card, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_flag(deui_ui_obj_metrics_card, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
   lv_obj_set_size(deui_ui_obj_metrics_card, card_w, card_h);
-  lv_obj_align(deui_ui_obj_metrics_card, LV_ALIGN_CENTER, 0, 0);
+  lv_obj_align(deui_ui_obj_metrics_card, LV_ALIGN_CENTER, 0, k_metrics_card_center_y_ofs);
   lv_obj_set_style_radius(deui_ui_obj_metrics_card, 8, LV_PART_MAIN);
   lv_obj_set_style_pad_all(deui_ui_obj_metrics_card, 14, LV_PART_MAIN);
   /** Rounded-rect clip was cutting off caption/value glyphs at the capsule edge. */
@@ -447,18 +447,18 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
    * 2×2 grid (left→right, top→bottom): weight | time, then pressure | flow.
    * Corners anchor each cell inside the padded card.
    */
-  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_weight_col, &s_weight_label, &s_weight_value, "WEIGHT (G)", cell_w,
+  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_weight_col, &s_weight_label, &s_weight_value, "WEIGHT", cell_w,
                            cell_h, LV_ALIGN_TOP_LEFT, &theme);
-  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_time_col, &s_time_label, &s_time_value, "TIME (S)", cell_w, cell_h,
+  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_time_col, &s_time_label, &s_time_value, "TIME", cell_w, cell_h,
                           LV_ALIGN_TOP_RIGHT, &theme);
-  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_pressure_col, &s_pressure_label, &s_pressure_value, "PRESS (BAR)",
+  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_pressure_col, &s_pressure_label, &s_pressure_value, "PRESS",
                           cell_w, cell_h, LV_ALIGN_BOTTOM_LEFT, &theme);
-  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_flow_col, &s_flow_label, &s_flow_value, "FLOW (ML/S)", cell_w, cell_h,
+  create_shot_metric_cell(deui_ui_obj_metrics_card, &s_flow_col, &s_flow_label, &s_flow_value, "FLOW", cell_w, cell_h,
                           LV_ALIGN_BOTTOM_RIGHT, &theme);
 
   /**
    * Searching / Idle headline stays on `root`, not inside `deui_ui_obj_metrics_card` (card clip + scroll once hid glyphs).
-   * Sits above the metrics block so the 2×2 grid can stay visible with zeros while disconnected / idle.
+   * Idle mode anchors below the metrics capsule; searching mode re-centers in `deui_ui_screen_searching`.
    */
   deui_ui_obj_machine_state = lv_label_create(root);
   deui_ui_strip_default_theme(deui_ui_obj_machine_state);
@@ -476,7 +476,8 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   deui_ui_pin_label_no_theme_recolor(deui_ui_obj_machine_state);
 
   /*
-   * Round panel: icons sit just below the metrics card (taller 2×2 shot grid).
+   * Footer link icons: anchored to the bottom edge so the idle headline (Ready, Heating, …)
+   * can sit in the gap between the metrics capsule and this row.
    */
   s_ble_icon = lv_label_create(root);
   deui_ui_strip_default_theme(s_ble_icon);
@@ -485,7 +486,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_color(s_ble_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
   lv_obj_set_style_color_filter_opa(s_ble_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_text_align(s_ble_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -34, 148);
+  lv_obj_align(s_ble_icon, LV_ALIGN_BOTTOM_MID, -56, -k_footer_icons_bottom_inset);
 
   s_wifi_icon = lv_label_create(root);
   deui_ui_strip_default_theme(s_wifi_icon);
@@ -494,7 +495,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_color(s_wifi_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
   lv_obj_set_style_color_filter_opa(s_wifi_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_text_align(s_wifi_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(s_wifi_icon, LV_ALIGN_CENTER, 56, 148);
+  lv_obj_align(s_wifi_icon, LV_ALIGN_BOTTOM_MID, 56, -k_footer_icons_bottom_inset);
 
   s_scale_icon = lv_label_create(root);
   deui_ui_strip_default_theme(s_scale_icon);
@@ -504,8 +505,7 @@ static esp_err_t deui_ui_init_under_lock(lv_disp_t *display) {
   lv_obj_set_style_text_color(s_scale_icon, lv_color_hex(theme.primary_text), LV_PART_MAIN);
   lv_obj_set_style_color_filter_opa(s_scale_icon, LV_OPA_TRANSP, LV_PART_MAIN);
   lv_obj_set_style_text_align(s_scale_icon, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-  lv_obj_align(s_scale_icon, LV_ALIGN_CENTER, 0, 148);
-  lv_obj_align(s_ble_icon, LV_ALIGN_CENTER, -56, 148);
+  lv_obj_align(s_scale_icon, LV_ALIGN_BOTTOM_MID, 0, -k_footer_icons_bottom_inset);
   deui_ui_pin_label_no_theme_recolor(s_ble_icon);
   deui_ui_pin_label_no_theme_recolor(s_wifi_icon);
   deui_ui_pin_label_no_theme_recolor(s_scale_icon);

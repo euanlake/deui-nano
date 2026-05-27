@@ -15,4 +15,11 @@ extern lv_obj_t *deui_ui_obj_footer;
 #define DEUI_UI_TEMP_ALWAYS_BREWING_WHEN_CONNECTED 0
 #endif
 
+/** Vertical stack on round 360×360: metrics capsule → idle headline → footer link icons. */
+enum {
+  k_metrics_card_center_y_ofs = -10,
+  k_idle_headline_below_metrics_gap = 6,
+  k_footer_icons_bottom_inset = 14,
+};
+
 void deui_ui_label_set_static_if_changed(lv_obj_t *label, const char *txt);
