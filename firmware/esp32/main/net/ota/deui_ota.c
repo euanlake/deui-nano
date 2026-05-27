@@ -7,6 +7,7 @@
 #include <string.h>
 #include "esp_app_format.h"
 #include "esp_crt_bundle.h"
+#include "esp_event.h"
 #include "esp_http_client.h"
 #include "esp_https_ota.h"
 #include "esp_log.h"
@@ -43,6 +44,42 @@ static void set_state(deui_ota_state_t state, const char *message) {
     strlcpy(s_status_message, message, sizeof(s_status_message));
   }
 }
+
+static const char *trigger_name(deui_ota_trigger_t trigger) {
+  switch (trigger) {
+  case DEUI_OTA_TRIGGER_AUTO_SLEEP:
+    return "auto";
+  case DEUI_OTA_TRIGGER_PORTAL:
+    return "portal";
+  default:
+    return "unknown";
+  }
+}
+
+#if CONFIG_DEUI_OTA_ENABLE
+static void https_ota_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
+                                    void *event_data) {
+  (void)arg;
+  (void)event_base;
+  (void)event_data;
+  switch (event_id) {
+  case ESP_HTTPS_OTA_START:
+    ESP_LOGI(TAG, "OTA: downloading firmware");
+    break;
+  case ESP_HTTPS_OTA_CONNECTED:
+    ESP_LOGI(TAG, "OTA: connected to firmware server");
+    break;
+  case ESP_HTTPS_OTA_FINISH:
+    ESP_LOGI(TAG, "OTA: download complete");
+    break;
+  case ESP_HTTPS_OTA_ABORT:
+    ESP_LOGE(TAG, "OTA: download aborted");
+    break;
+  default:
+    break;
+  }
+}
+#endif
 
 const char *deui_ota_get_current_version(void) {
   const esp_app_desc_t *desc = esp_app_get_description();
@@ -100,11 +137,14 @@ static esp_err_t http_get_to_buffer(const char *url, char *out, size_t out_size)
     return ESP_ERR_NO_MEM;
   }
 
+  ESP_LOGI(TAG, "OTA: connecting to manifest server");
   esp_err_t err = esp_http_client_open(client, 0);
   if (err != ESP_OK) {
+    ESP_LOGE(TAG, "OTA: manifest connection failed: %s", esp_err_to_name(err));
     esp_http_client_cleanup(client);
     return err;
   }
+  ESP_LOGI(TAG, "OTA: connected to manifest server");
 
   (void)esp_http_client_fetch_headers(client);
   size_t total = 0;
@@ -163,6 +203,7 @@ static bool parse_manifest(const char *json, deui_ota_manifest_t *manifest) {
 
 static esp_err_t fetch_manifest(deui_ota_manifest_t *manifest) {
   char body[512] = {0};
+  ESP_LOGI(TAG, "OTA: searching for updates (manifest)");
   esp_err_t err = http_get_to_buffer(CONFIG_DEUI_OTA_MANIFEST_URL, body, sizeof(body));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Manifest fetch failed: %s", esp_err_to_name(err));
@@ -172,6 +213,7 @@ static esp_err_t fetch_manifest(deui_ota_manifest_t *manifest) {
     ESP_LOGE(TAG, "Manifest parse failed");
     return ESP_ERR_INVALID_RESPONSE;
   }
+  ESP_LOGI(TAG, "OTA: manifest remote version=%s", manifest->version);
   return ESP_OK;
 }
 
@@ -187,6 +229,7 @@ static esp_err_t download_firmware(const deui_ota_manifest_t *manifest) {
   };
 
   set_state(DEUI_OTA_STATE_DOWNLOADING, "Downloading firmware...");
+  ESP_LOGI(TAG, "OTA: connecting to firmware server");
   esp_err_t err = esp_https_ota(&ota_config);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "HTTPS OTA failed: %s", esp_err_to_name(err));
@@ -209,6 +252,11 @@ esp_err_t deui_ota_init(void) {
 #else
   s_boot_us = esp_timer_get_time();
   ESP_LOGI(TAG, "Running firmware version %s", deui_ota_get_current_version());
+  esp_err_t err = esp_event_handler_register(ESP_HTTPS_OTA_EVENT, ESP_EVENT_ANY_ID,
+                                             https_ota_event_handler, NULL);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "HTTPS OTA event handler registration failed: %s", esp_err_to_name(err));
+  }
   return ESP_OK;
 #endif
 }
@@ -300,6 +348,7 @@ static esp_err_t run_ota_check(deui_ota_trigger_t trigger) {
       set_state(DEUI_OTA_STATE_FAILED, "Cannot update right now. Try again when idle.");
       return ESP_ERR_INVALID_STATE;
     }
+    ESP_LOGI(TAG, "OTA: check deferred (trigger=%s)", trigger_name(trigger));
     return ESP_OK;
   }
 
@@ -307,16 +356,21 @@ static esp_err_t run_ota_check(deui_ota_trigger_t trigger) {
     if (trigger == DEUI_OTA_TRIGGER_PORTAL) {
       if (!deui_ota_has_internet()) {
         set_state(DEUI_OTA_STATE_NO_INTERNET, "Connect to home Wi-Fi to check for updates.");
+        ESP_LOGI(TAG, "OTA: check skipped (no internet)");
       } else {
         set_state(DEUI_OTA_STATE_FAILED, "Cannot update right now. Try again when idle.");
+        ESP_LOGI(TAG, "OTA: check skipped (not idle)");
       }
       return ESP_ERR_INVALID_STATE;
     }
+    ESP_LOGI(TAG, "OTA: check skipped (trigger=%s, no internet or not idle)", trigger_name(trigger));
     return ESP_ERR_INVALID_STATE;
   }
 
   s_active = true;
   set_state(DEUI_OTA_STATE_CHECKING, "Checking for updates...");
+  ESP_LOGI(TAG, "OTA: checking for updates (trigger=%s, current=%s)", trigger_name(trigger),
+           deui_ota_get_current_version());
 
   deui_ota_manifest_t manifest = {0};
   esp_err_t err = fetch_manifest(&manifest);
@@ -329,6 +383,8 @@ static esp_err_t run_ota_check(deui_ota_trigger_t trigger) {
   strlcpy(s_remote_version, manifest.version, sizeof(s_remote_version));
   const int cmp = semver_compare(deui_ota_get_current_version(), manifest.version);
   if (cmp >= 0) {
+    ESP_LOGI(TAG, "OTA: up to date (current=%s, remote=%s)", deui_ota_get_current_version(),
+             manifest.version);
     set_state(DEUI_OTA_STATE_UP_TO_DATE, "You are on the latest version.");
     s_active = false;
     return ESP_OK;
