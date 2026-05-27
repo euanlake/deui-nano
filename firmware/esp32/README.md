@@ -56,7 +56,7 @@ If partitions change (`partitions.csv`), run `full` again.
 
 ## Browser install (DIY)
 
-`https://euanlake.github.io/deui-nano-testing/`
+`https://euanlake.github.io/deui-nano/`
 
 ## Board pins
 

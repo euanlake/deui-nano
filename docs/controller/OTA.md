@@ -13,7 +13,7 @@ HTTPS over-the-air updates for the ESP32-S3 controller using dual OTA partitions
 
 Devices poll:
 
-`https://raw.githubusercontent.com/euanlake/deui-nano-testing/main/firmware/esp32/ota/manifest.json`
+`https://raw.githubusercontent.com/euanlake/deui-nano/main/firmware/esp32/ota/manifest.json`
 
 CI updates this file on each tagged release (`vX.Y.Z`).
 
@@ -24,7 +24,7 @@ Schema:
   "product": "deui_nano",
   "target": "esp32s3",
   "version": "1.0.0",
-  "url": "https://github.com/euanlake/deui-nano-testing/releases/download/v1.0.0/deui_nano-esp32s3-v1.0.0.bin",
+  "url": "https://github.com/euanlake/deui-nano/releases/download/v1.0.0/deui_nano-esp32s3-v1.0.0.bin",
   "sha256": "<hex>",
   "notes": "Release notes"
 }
@@ -60,7 +60,7 @@ In `idf.py menuconfig` → **DEUI OTA**:
 
 Browser install page (ESP Web Tools):
 
-`https://euanlake.github.io/deui-nano-testing/`
+`https://euanlake.github.io/deui-nano/`
 
 See [FLASHING_CONTROLLER.md](FLASHING_CONTROLLER.md) and [../install/README.md](../../install/README.md).
 

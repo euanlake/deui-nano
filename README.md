@@ -1,4 +1,4 @@
-# DEUI Nano Testing Workspace
+# DEUI Nano
 
 This repository contains firmware and supporting documentation for a DEUI-branded round ESP32-S3 controller.
 
@@ -78,9 +78,7 @@ ESPPORT=/dev/cu.usbmodemXXXX ./dev.sh quick
 - Flashing workflow: `docs/controller/FLASHING_CONTROLLER.md`
 - Setup/onboarding flow: `docs/controller/SETUP_GUIDE.md`
 - OTA updates: `docs/controller/OTA.md`
-- Browser install: `https://euanlake.github.io/deui-nano-testing/`
-- OTA updates: `docs/controller/OTA.md`
-- Browser install: https://euanlake.github.io/deui-nano-testing/
+- Browser install: https://euanlake.github.io/deui-nano/
 - DE1 BLE protocol context: `docs/de1-bluetooth-protocol.md`
 - Touch debugging handoff notes: `docs/touch-controller-debug-handoff.md`
 

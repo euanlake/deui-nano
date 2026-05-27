@@ -600,7 +600,7 @@ CONFIG_PARTITION_TABLE_MD5=y
 # DEUI Nano OTA
 #
 CONFIG_DEUI_OTA_ENABLE=y
-CONFIG_DEUI_OTA_MANIFEST_URL="https://raw.githubusercontent.com/euanlake/deui-nano-testing/main/firmware/esp32/ota/manifest.json"
+CONFIG_DEUI_OTA_MANIFEST_URL="https://raw.githubusercontent.com/euanlake/deui-nano/main/firmware/esp32/ota/manifest.json"
 # end of DEUI Nano OTA
 
 #

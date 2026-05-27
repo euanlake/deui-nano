@@ -13,7 +13,7 @@ This guide covers flashing `firmware/esp32` onto the DEUI ST77916/CST816 control
 
 For a one-time USB flash in Chrome or Edge:
 
-**https://euanlake.github.io/deui-nano-testing/**
+**https://euanlake.github.io/deui-nano/**
 
 Uses ESP Web Tools with a merged full-flash image (bootloader + partition table + OTA slots + app). After install, configure Wi-Fi via the setup portal at **http://deui.local/**.
 

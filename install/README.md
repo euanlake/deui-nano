@@ -21,7 +21,7 @@ On each tagged release (`v*.*.*`), `.github/workflows/firmware-release.yml`:
 2. Copies the merged binary to `install/firmware/`
 3. Updates `install/manifest.json` and deploys to GitHub Pages
 
-Published URL: `https://euanlake.github.io/deui-nano-testing/`
+Published URL: `https://euanlake.github.io/deui-nano/`
 
 ## Development notes
 

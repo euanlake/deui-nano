@@ -2,7 +2,7 @@
   "product": "deui_nano",
   "target": "esp32s3",
   "version": "1.0.0",
-  "url": "https://github.com/euanlake/deui-nano-testing/releases/download/v1.0.0/deui_nano-esp32s3-v1.0.0.bin",
+  "url": "https://github.com/euanlake/deui-nano/releases/download/v1.0.0/deui_nano-esp32s3-v1.0.0.bin",
   "sha256": "",
   "notes": "Initial OTA-capable release placeholder. CI updates this file on each tagged release."
 }

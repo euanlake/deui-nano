@@ -8,7 +8,7 @@ config DEUI_OTA_ENABLE
 
 config DEUI_OTA_MANIFEST_URL
     string "OTA manifest URL (HTTPS JSON)"
-    default "https://raw.githubusercontent.com/euanlake/deui-nano-testing/main/firmware/esp32/ota/manifest.json"
+    default "https://raw.githubusercontent.com/euanlake/deui-nano/main/firmware/esp32/ota/manifest.json"
     depends on DEUI_OTA_ENABLE
     help
         Stable URL for the version manifest. CI updates this file on each release.

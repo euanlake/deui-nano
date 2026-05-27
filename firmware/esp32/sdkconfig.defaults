@@ -38,4 +38,4 @@ CONFIG_ESP_LCD_TOUCH_CST816S_DISABLE_READ_ID=y
 # OTA: dual-slot partition table + rollback after successful boot.
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_DEUI_OTA_ENABLE=y
-CONFIG_DEUI_OTA_MANIFEST_URL="https://raw.githubusercontent.com/euanlake/deui-nano-testing/main/firmware/esp32/ota/manifest.json"
+CONFIG_DEUI_OTA_MANIFEST_URL="https://raw.githubusercontent.com/euanlake/deui-nano/main/firmware/esp32/ota/manifest.json"
