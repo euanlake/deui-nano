@@ -28,5 +28,6 @@ Published URL: `https://euanlake.github.io/deui-nano/`
 ## Development notes
 
 - `manifest.json` follows the ESP Web Tools schema (`chipFamily`, `parts[]`, `offset`)
-- Fonts and logo match the on-device Wi-Fi portal (Lab Grotesque, dark theme)
+- Styling follows the Deui marketing site (`styles.css` ported from `deui website/src/index.css`)
+- Theme-aware assets: logos, controller display mockup, favicons, and full Lab Grotesque font set under `assets/`, `favicon/`, and `fonts/LabGrotesque/`
 - `install/firmware/*.bin` is gitignored; CI publishes merged full-flash images to GitHub Pages on release tags

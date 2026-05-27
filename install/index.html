@@ -3,124 +3,161 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#000000" />
     <title>Install DEUI Nano</title>
-    <link rel="icon" href="assets/deui-logo.png" type="image/png" />
-    <style>
-      @font-face {
-        font-family: "Lab Grotesque";
-        font-style: normal;
-        font-weight: 400;
-        font-display: swap;
-        src: url("fonts/LabGrotesque-Regular.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "Lab Grotesque";
-        font-style: normal;
-        font-weight: 500;
-        font-display: swap;
-        src: url("fonts/LabGrotesque-Medium.woff2") format("woff2");
-      }
-      @font-face {
-        font-family: "Lab Grotesque";
-        font-style: normal;
-        font-weight: 700;
-        font-display: swap;
-        src: url("fonts/LabGrotesque-Bold.woff2") format("woff2");
-      }
-      *,
-      *::before,
-      *::after {
-        box-sizing: border-box;
-      }
-      html {
-        font-family: "Lab Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #000000;
-        color: #ebe8e8;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
-        font-weight: 500;
-        font-size: 1.125rem;
-        line-height: 1.5;
-      }
-      .wrap {
-        max-width: 28rem;
-        margin: 0 auto;
-      }
-      .logo {
-        display: block;
-        width: 48px;
-        height: 48px;
-        object-fit: contain;
-      }
-      h1 {
-        margin: 1rem 0 0.5rem;
-        font-size: 1.75rem;
-        font-weight: 500;
-      }
-      .lead {
-        margin: 0 0 1.5rem;
-        color: #757575;
-        font-size: 1rem;
-      }
-      .install-shell {
-        margin: 1.5rem 0;
-      }
-      esp-web-install-button {
-        --esp-web-install-button-color: #272727;
-        --esp-web-install-button-text-color: #ebe8e8;
-      }
-      .footnote {
-        margin-top: 1.5rem;
-        font-size: 0.875rem;
-        line-height: 1.45;
-        color: #757575;
-      }
-      a {
-        color: #3f9cf2;
-      }
-      footer {
-        margin-top: 2rem;
-        font-size: 0.875rem;
-        color: #757575;
-      }
-    </style>
+    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico?v=2" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon/favicon-32x32.png?v=2" />
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon/favicon-16x16.png?v=2" />
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png?v=2" />
+    <link rel="preload" href="fonts/LabGrotesque/LabGrotesque-Medium.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      (function () {
+        var storageKey = "deui-theme";
+        var stored = localStorage.getItem(storageKey);
+        function resolveTheme() {
+          if (window.matchMedia("(prefers-color-scheme: no-preference)").matches) {
+            return "dark";
+          }
+          return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.classList.add(stored || resolveTheme());
+      })();
+    </script>
     <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
   </head>
   <body>
-    <div class="wrap">
-      <img class="logo" src="assets/deui-logo.png" width="48" height="48" alt="DEUI" />
-      <h1>Install DEUI Nano firmware</h1>
-      <p class="lead">Connect your controller via USB. Use Chrome or Edge.</p>
-      <div class="install-shell">
-        <esp-web-install-button manifest="manifest.json">Install</esp-web-install-button>
-      </div>
-      <p class="footnote">
-        Waveshare Knob 1.8 boards expose two USB serial ports depending on cable orientation — select the
-        <strong>ESP32-S3</strong> port. See
-        <a href="https://github.com/euanlake/deui-nano/blob/main/docs/controller/FLASHING_CONTROLLER.md"
-          >flashing docs</a
-        >
-        for details.
-      </p>
-      <footer>
-        Version <span id="version">1.0.0</span> ·
-        <a href="https://github.com/euanlake/deui-nano/releases">GitHub Releases</a>
-      </footer>
+    <div class="page mobile-layout">
+      <header>
+        <div class="header-inner">
+          <a class="mobile-logo" href="https://github.com/euanlake/deui-nano" aria-label="Deui home">
+            <span class="logo-wrap theme-image">
+              <img
+                class="theme-image__light"
+                src="assets/LogoLight.png"
+                alt="Deui"
+                width="52"
+                height="64"
+              />
+              <img
+                class="theme-image__dark"
+                src="assets/LogoDark.png"
+                alt=""
+                aria-hidden="true"
+                width="52"
+                height="64"
+              />
+            </span>
+          </a>
+          <div class="mobile-theme-toggle">
+            <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode">
+              <span class="theme-toggle__thumb">
+                <span class="theme-toggle__icon theme-toggle__icon--light" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="31.501" height="31.5" viewBox="0 0 35 35" fill="none">
+                    <path d="M17.3252 7.8752V1.5752" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M10.6423 10.6423L6.1875 6.1875" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M7.8752 17.3252H1.5752" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M10.6423 24.0073L6.1875 28.4621" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M17.3252 26.7749V33.0749" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M24.0068 24.0073L28.4616 28.4621" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M26.7764 17.3252H33.0764" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M24.0068 10.6423L28.4616 6.1875" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M17.324 26.7755C22.5431 26.7755 26.774 22.5446 26.774 17.3255C26.774 12.1064 22.5431 7.87549 17.324 7.87549C12.1049 7.87549 7.87402 12.1064 7.87402 17.3255C7.87402 22.5446 12.1049 26.7755 17.324 26.7755Z" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M22.5755 21.5247C21.0303 21.5243 19.5087 21.145 18.1441 20.4202C16.7794 19.6953 15.6132 18.647 14.7476 17.367C13.8821 16.0869 13.3435 14.6142 13.1791 13.0777C13.0147 11.5413 13.2294 9.98793 13.8045 8.55371C12.354 9.13599 11.0705 10.0689 10.069 11.269C9.06746 12.4691 8.37922 13.8988 8.06588 15.4301C7.75254 16.9615 7.82388 18.5466 8.27351 20.0436C8.72314 21.5406 9.53702 22.9027 10.6423 24.008C11.7475 25.1132 13.1096 25.9271 14.6066 26.3767C16.1036 26.8264 17.6888 26.8977 19.2201 26.5844C20.7514 26.271 22.1812 25.5828 23.3812 24.5813C24.5813 23.5798 25.5142 22.2963 26.0965 20.8457C24.9773 21.2958 23.7819 21.5264 22.5755 21.5247V21.5247Z" stroke="black" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+                <span class="theme-toggle__icon theme-toggle__icon--dark" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+                    <path d="M33.0397 13.6979C31.5986 12.2708 29.8578 11.1834 27.9465 10.5164C28.8277 12.9336 29.0053 15.5449 28.4585 18.0452C27.9117 20.5454 26.6631 22.8314 24.8585 24.6359C23.054 26.4405 20.768 27.6891 18.2678 28.2359C15.7675 28.7827 13.1562 28.6051 10.739 27.7239C11.4289 29.6467 12.5414 31.3938 13.9938 32.8356C15.4462 34.2775 17.2014 35.377 19.1291 36.0528C21.0568 36.7285 23.1077 36.9631 25.1295 36.7392C27.1514 36.5152 29.0923 35.8385 30.8085 34.7591C32.5247 33.6797 33.972 32.2254 35.0431 30.504C36.1143 28.7827 36.7817 26.8384 36.9961 24.8154C37.2104 22.7924 36.966 20.7426 36.2811 18.8181C35.5962 16.8935 34.4884 15.1435 33.0397 13.6979V13.6979Z" stroke="white" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="mobile-hero">
+          <h1>Deui is a simple and elegant interface for Decent Espresso machines</h1>
+        </section>
+
+        <section class="mockup-section">
+          <div class="mockup-inner">
+            <div class="device-mockup">
+              <img
+                src="assets/nano-display-mockup.png"
+                alt="DEUI Nano controller display showing live espresso metrics"
+                width="440"
+                height="440"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section class="mobile-cta">
+          <div class="cta-inner">
+            <p class="install-lead">Install DEUI Nano firmware on your controller. Connect via USB using Chrome or Edge.</p>
+            <esp-web-install-button manifest="manifest.json">
+              <button slot="activate" class="install-btn" type="button">Install firmware</button>
+              <span slot="unsupported" class="install-msg"
+                >Firmware install requires Chrome or Edge on desktop.</span
+              >
+              <span slot="not-allowed" class="install-msg"
+                >Open this page over HTTPS or localhost to install firmware.</span
+              >
+            </esp-web-install-button>
+            <p class="footnote">
+              Waveshare Knob 1.8 boards expose two USB serial ports depending on cable orientation — select the
+              <strong>ESP32-S3</strong> port. See
+              <a href="https://github.com/euanlake/deui-nano/blob/main/docs/controller/FLASHING_CONTROLLER.md"
+                >flashing docs</a
+              >
+              for details.
+            </p>
+          </div>
+        </section>
+
+        <footer class="mobile-footer">
+          <div class="footer-inner">
+            <p class="footer-meta">
+              Version <span id="version">1.0.0</span> ·
+              <a href="https://github.com/euanlake/deui-nano/releases">GitHub Releases</a>
+            </p>
+            <div class="footer-row">
+              <p>
+                Designed and built by
+                <a href="#" class="footer-link">Matt</a>,
+                <a href="#" class="footer-link">Euan</a>
+                and
+                <a href="#" class="footer-link">Mariusz</a>
+              </p>
+            </div>
+            <div class="footer-row">
+              <p>
+                <a href="https://github.com/euanlake/deui-nano">
+                  Github repo <span class="footer-arrow">→</span>
+                </a>
+              </p>
+            </div>
+          </div>
+        </footer>
+      </main>
     </div>
+
+    <script src="theme.js"></script>
     <script>
       fetch("manifest.json")
-        .then((r) => r.json())
-        .then((j) => {
-          if (j.version) {
-            document.getElementById("version").textContent = j.version;
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (manifest) {
+          if (manifest.version) {
+            document.getElementById("version").textContent = manifest.version;
           }
         })
-        .catch(() => {});
+        .catch(function () {});
     </script>
   </body>
 </html>
